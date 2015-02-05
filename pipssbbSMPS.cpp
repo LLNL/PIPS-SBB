@@ -371,7 +371,13 @@ public:
 
     /* While heap not empty and there are still nodes in tree */
     // TODO: Add tolerance on optimality gap, time limit option.
-    while (!heap.empty()) {
+    while (true) {
+
+      /* If heap is empty, update status to Stopped (if possible) and break. */
+      if (heap.empty()) {
+	setStatusToStopped();
+	break;
+      }
 
       /* Get top-most node and pop it off of heap. */
       BranchAndBoundNode currentNode(heap.top());
