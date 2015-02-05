@@ -150,6 +150,8 @@ public:
 
     BAFlagVector<variableState> states(dims, ctx, PrimalVector);
     rootSolver.getStates(states);
+    rootSolver.setPrimalTolerance(1e-6);
+    rootSolver.setDualTolerance(1e-6);
 
     heap.push(BranchAndBoundNode(objLB,
 				 rootSolver.getLB(),
@@ -368,9 +370,14 @@ public:
 
   void branchAndBound() {
 
+    unsigned int nodeNumber = 0;
+    if (0 == mype) cout << "Starting branch-and-bound!\n";
+
     /* While heap not empty and there are still nodes in tree */
     // TODO: Add tolerance on optimality gap, time limit option.
     while (true) {
+
+      if (0 == mype) cout << "Heap is empty!\n";
 
       /* If heap is empty, update status to Stopped (if possible) and break. */
       if (heap.empty()) {
@@ -380,6 +387,7 @@ public:
 	   the solution must be optimal. */
 	if (PrimalFeasible == status) {
 	  setStatusToOptimal();
+	  if (0 == mype) cout << "Optimal solution found!\n";
 	}
 
 	/* If solver status is not primal feasible, then the MILP must be
@@ -388,6 +396,7 @@ public:
 	// TODO: Add test for unboundedness.
 	if (LoadedFromFile == status) {
 	  setStatusToProvenInfeasible();
+	  if (0 == mype) cout << "MILP is infeasible!\n";
 	}
 
 	break;
@@ -396,16 +405,20 @@ public:
       /* Get top-most node and pop it off of heap. */
       BranchAndBoundNode currentNode(heap.top());
       heap.pop();
+      if (0 == mype) cout << "Popping node " << ++nodeNumber << " off tree!\n";
 
       /* Set bounds of LP decision variables from BranchAndBoundNode */
+      if (0 == mype) cout << "Setting bounds for LP subproblem!\n";
       rootSolver.setLB(currentNode.lb);
       rootSolver.setUB(currentNode.ub);
 
       /* Set information on basic/nonbasic variables for warm starting */
+      if (0 == mype) cout << "Setting warm start information!\n";
       rootSolver.setStates(currentNode.parentStates);
       rootSolver.commitStates();
 
       /* Solve LP defined by current node*/
+      if (0 == mype) cout << "Solving LP subproblem!\n";
       rootSolver.go();
 
       /* Check solver status for infeasibility/optimality */
@@ -423,7 +436,11 @@ public:
 
       /* Fathom by infeasibility */
       // If LP solver returns infeasibility, fathom node, go to start of loop
-      if (isLPinfeasible) continue;
+      if (isLPinfeasible) {
+	if (0 == mype) cout << "Fathoming node "
+			    << nodeNumber << " by infeasibility!\n";
+	continue;
+      }
 
       // Otherwise, LP is optimal or unbounded.
       // If LP solver returns optimal, then the objective is bounded below.
@@ -439,7 +456,11 @@ public:
       // value than the current upper bound on the optimal value of
       // the MILP objective function.
       double lpObj = rootSolver.getObjective();
-      if (lpObj >= objUB) continue;
+      if (lpObj >= objUB) {
+	if (0 == mype) cout << "Fathoming node "
+			    << nodeNumber << " by value dominance!\n";
+	continue;
+      }
 
       /* Get primal solution */
       denseBAVector primalSoln(rootSolver.getPrimalSolution());
@@ -451,6 +472,7 @@ public:
       //  - Fathom node, go to start of loop
 
       if(isLPIntFeas(primalSoln)) {
+	if (0 == mype) cout << "Node " << nodeNumber << " is integer feasible!\n";
 	setStatusToPrimalFeasible();
 
 	// TODO: Maintain solution pool of best k solutions for k = some small value
@@ -460,6 +482,7 @@ public:
 	double newUB = rootSolver.getObjective();
 	bool isNewUBbetter = (newUB < objUB);
 	if (isLPoptimal && isNewUBbetter) {
+	  if (0 == mype) cout << "Updating best upper bound to " << newUB << endl;
 	  objUB = rootSolver.getObjective();
 	  ubPrimalSolution.copyFrom(primalSoln);
 	}
@@ -479,6 +502,7 @@ public:
       // on the objective function value.
       if (isLPoptimal) {
 	if (lpObj >= objLB) {
+	  if (0 == mype) cout << "Updating best lower bound to " << lpObj << endl;
 	  lpObj = objLB;
 	}
       }
@@ -490,6 +514,7 @@ public:
       if (abs(objUB - objLB) <= optGapTol) {
 	assert(objLB <= objUB);
 	setStatusToOptimal();
+	if (0 == mype) cout << "Optimality gap reached! Terminating!\n";
 	break;
       }
 
@@ -498,6 +523,7 @@ public:
       // If first stage decision variables not integer feasible,
       // branch on a first stage variable, go to start of loop
       if(!isFirstStageIntFeas(primalSoln)) {
+	if (0 == mype) cout << "Branching on first stage!\n";
 	branchOnFirstStage(primalSoln);
 	continue;
       }
@@ -506,6 +532,7 @@ public:
       // are integer feasible, but the LP solution is not integer feasible, so
       // one of the second stage scenarios must not be integer feasible, and
       // one of the variables in one of those scenarios should be branched on.
+      if (0 == mype) cout << "Branching on second stage!\n";
       branchOnSecondStage(primalSoln);
       continue;
     }
@@ -547,9 +574,10 @@ int main(int argc, char **argv) {
 	BAContext ctx(MPI_COMM_WORLD);
 
 	// Initialize branch-and-bound tree
+	if (0 == mype) cout << "Initializing branch-and-bound tree!\n";
+	BranchAndBoundTree bb(input);
 
-
-
+	/*
 	// Solve deterministic LP formulation via dual simplex
 	PIPSSInterface solver(input, ctx, PIPSSInterface::useDual);
 
@@ -562,21 +590,17 @@ int main(int argc, char **argv) {
 	solver.setDualTolerance(1e-6);
 	solver.go();
 
-	// Get solution for warm start
-
-
-	// (Set solution for warm start?)
-
-
-	// Change bounds...
-
-
 	// Write solution (if given enough input arguments)
 	if (argc >= 4 && argv[3][0] != '-') {
 		if (mype == 0) printf("Writing solution\n");
 		solver.writeStatus(argv[3]);
 		if (mype == 0) printf("Finished writing solution\n");
 	}
+	*/
+
+	if (0 == mype) cout << "Calling branch-and-bound!\n";
+	bb.branchAndBound();
+
 
 	// Clean up MPI data structures
 	MPI_Finalize();
