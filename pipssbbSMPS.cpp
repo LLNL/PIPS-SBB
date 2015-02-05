@@ -373,6 +373,21 @@ public:
       /* If heap is empty, update status to Stopped (if possible) and break. */
       if (heap.empty()) {
 	setStatusToStopped();
+
+	/* If solver status is primal feasible, and the heap is empty, then
+	   the solution must be optimal. */
+	if (PrimalFeasible == status) {
+	  setStatusToOptimal();
+	}
+
+	/* If solver status is not primal feasible, then the MILP must be
+	   infeasible or unbounded. At the moment, there are no checks for
+	   boundedness or unboundedness, so return infeasible. */
+	// TODO: Add test for unboundedness.
+	if (LoadedFromFile == status) {
+	  setStatusToProvenInfeasible();
+	}
+
 	break;
       }
 
