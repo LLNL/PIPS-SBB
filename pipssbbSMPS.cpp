@@ -103,9 +103,9 @@ public:
   PIPSSInterface rootSolver; // PIPS-S instance for root LP relaxation
   BADimensions dims; // Dimension object for instantiating 
 
-  double objUB; // upper bound on objective function value
-  denseBAVector ubPrimalSolution; // primal solution for upper bound on obj
-  double objLB; // lower bound on objective function value
+  double objUB; // best upper bound on objective function value
+  denseBAVector ubPrimalSolution; // primal solution for best UB on obj
+  double objLB; // best lower bound on objective function value
 
   double intTol; // tolerance on integrality checks
 
