@@ -317,6 +317,56 @@ public:
   
   // TODO: Add way to access single scenario.
 
+  /* TODO: Refactor MIP solver status into its own class to handle
+     the transition logic. */
+  /* TODO: Add more nuanced version of solver statuses. */
+  /* Methods defining allowable transitions for status */
+  /* status transition state diagram */
+  // NOTE: "Bounded" is not currently a solver state;
+  // TODO: Add Bounded as a solver state.
+  // LoadedFromFile -> {Bounded, PrimalFeasible, Optimal,
+  //                    ProvenInfeasible, Unbounded, Stopped}
+  // Bounded -> {PrimalFeasible, Optimal, ProvenInfeasible, Stopped}
+  // PrimalFeasible -> {Optimal, Stopped}
+
+  // void setStatusToBounded() {
+  //   bool isInReachableState = (LoadedFromFile == status);
+  //   if (isInReachableState) {
+  //     status = Bounded;
+  //   }
+  // }
+
+  void setStatusToPrimalFeasible() {
+    bool isInReachableState = (LoadedFromFile == status);
+    //      || (status == Bounded);
+    if (isInReachableState) {
+      status = PrimalFeasible;
+    }
+  }
+
+  void setStatusToOptimal() {
+    bool isInReachableState = (LoadedFromFile == status) ||
+      (PrimalFeasible == status); // || (Bounded == status);
+    if (isInReachableState) {
+      status = Optimal;
+    }
+  }
+
+  void setStatusToProvenInfeasible() {
+    bool isInReachableState = (LoadedFromFile == status) ||
+      (ProvenInfeasible == status);
+    if (isInReachableState) {
+      status = ProvenInfeasible;
+    }
+  }
+
+  void setStatusToStopped() {
+    bool isInReachableState = (LoadedFromFile == status);
+    if (isInReachableState) {
+      status = Stopped;
+    }
+  }
+
   void branchAndBound() {
 
     /* While heap not empty and there are still nodes in tree */
