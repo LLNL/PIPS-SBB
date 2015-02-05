@@ -12,7 +12,7 @@
 using boost::scoped_ptr; // replace with unique_ptr for C++11
 using namespace std;
 
-// NOTE: Very preliminary code; want to stand up an example 
+// NOTE: Very preliminary code; want to stand up an example
 //       first before refining the design
 
 // Use to define branching heuristics?
@@ -31,7 +31,7 @@ class BranchAndBoundNode {
 public:
   //PIPSSInterface* solver; // PIPS-S instance
   double parentObj; // obj fn val of node parent
-  
+
   // TODO: Figure out correct data type for these variables
   denseBAVector lb; // lower bounds of variables
   denseBAVector ub; // upper bounds of variables
@@ -78,7 +78,7 @@ public:
     // Return existing object for chaining.
     return *this;
   }
-  
+
 private:
   BranchAndBoundNode(); // Disallow default constructor
 
@@ -101,7 +101,7 @@ public:
   int mype; // MPI rank of process storing tree (relative to comm in ctx)
   SMPSInput input; // SMPS input file for reading in block angular MILP
   PIPSSInterface rootSolver; // PIPS-S instance for root LP relaxation
-  BADimensions dims; // Dimension object for instantiating 
+  BADimensions dims; // Dimension object for instantiating
 
   double objUB; // best upper bound on objective function value
   denseBAVector ubPrimalSolution; // primal solution for best UB on obj
@@ -164,7 +164,7 @@ public:
   // Auxiliary functions for branching
   int getFirstStageMinIntInfeasCol(const denseBAVector& primalSoln) {
     int col;
-    
+
     // Return first index of integer variable with fractional value
     for (col = 0; col < input.nFirstStageVars(); col++)
       {
@@ -197,12 +197,12 @@ public:
 	bool isColInteger = input.isSecondStageColInteger(scen, col);
 	bool isValInteger = isIntFeas(primalSoln.getSecondStageVec(scen)[col],
 				      intTol);
-	
+
 	// If the (col)th 2nd stage primal variable of the (scen)th
 	// scenario is integer, but has fractional value, return idx
 	if (isColInteger && !isValInteger) return col;
       }
-    
+
     // Otherwise, return -1;
     return -1;
   }
@@ -214,14 +214,14 @@ public:
   bool isLPIntFeas(const denseBAVector& primalSoln) {
 
     int is1stStageIntFeas(isFirstStageIntFeas(primalSoln));
-    
+
     int isMyScenIntFeas(0);
     for (int scen = 0; scen < input.nScenarios(); scen++) {
       if(ctx.assignedScenario(scen)) {
 	isMyScenIntFeas = isSecondStageIntFeas(primalSoln, scen);
       }
     }
-    
+
     int is2ndStageIntFeas(0);
     int errorFlag = MPI_Allreduce(&isMyScenIntFeas,
 				  &is2ndStageIntFeas,
@@ -230,7 +230,7 @@ public:
 				  MPI_LAND, // MPI logical and
 				  ctx.comm());
     // TODO: Some error handling here
-    
+
     return (is1stStageIntFeas && is2ndStageIntFeas);
   }
 
@@ -238,7 +238,7 @@ public:
 
     /* Branching setup */
     double lpObj = rootSolver.getObjective();
-    
+
     /* Get warm start information from solver for B&B node..*/
     BAFlagVector<variableState> states(dims, ctx, PrimalVector);
     rootSolver.getStates(states);
@@ -247,26 +247,26 @@ public:
     // the "floor" child and the "ceiling" child
     denseBAVector lbFloor(rootSolver.getLB()), lbCeil(rootSolver.getLB());
     denseBAVector ubFloor(rootSolver.getUB()), ubCeil(rootSolver.getUB());
-    
+
     // For now, get minimal index of an integer infeasible variable
     int branchCol = getFirstStageMinIntInfeasCol(primalSoln);
-    ubFloor.getFirstStageVec()[branchCol] = 
+    ubFloor.getFirstStageVec()[branchCol] =
       floor(primalSoln.getFirstStageVec()[branchCol]);
-    lbCeil.getFirstStageVec()[branchCol] = 
+    lbCeil.getFirstStageVec()[branchCol] =
       ceil(primalSoln.getFirstStageVec()[branchCol]);
-    
+
     BranchAndBoundNode childFloor(lpObj, lbFloor, ubFloor, states);
     BranchAndBoundNode childCeil(lpObj, lbCeil, ubCeil, states);
     heap.push(childFloor);
     heap.push(childCeil);
- 	
+
   }
 
   void branchOnSecondStage(const denseBAVector& primalSoln) {
 
     /* Branching setup */
     double lpObj = rootSolver.getObjective();
-    
+
     // Warm start information
     BAFlagVector<variableState> states(dims, ctx, PrimalVector);
     rootSolver.getStates(states);
@@ -279,7 +279,7 @@ public:
     // For now, find the minimum scenario number such that one of its
     // decision variables is integer infeasible. In that scenario number,
     // get the minimal index of an integer infeasible variable.
-      
+
     int branchableScen(input.nScenarios() + 1);
     int scen = 0;
     for (; scen < input.nScenarios(); scen++)
@@ -297,12 +297,12 @@ public:
 				  MPI_INT,
 				  MPI_MIN,
 				  ctx.comm());
-    
+
     // Then, for that scenario number, get the minimal index of
-    // an integer infeasible decision variable, and branch on that column 
+    // an integer infeasible decision variable, and branch on that column
     if(ctx.assignedScenario(branchScen)) {
       int branchCol = getSecondStageMinIntInfeasCol(primalSoln, scen);
-      ubFloor.getSecondStageVec(branchScen)[branchCol] = 
+      ubFloor.getSecondStageVec(branchScen)[branchCol] =
 	floor(primalSoln.getSecondStageVec(branchScen)[branchCol]);
       lbCeil.getSecondStageVec(branchScen)[branchCol] =
 	ceil(primalSoln.getSecondStageVec(branchScen)[branchCol]);
@@ -313,7 +313,7 @@ public:
       heap.push(childCeil);
     }
   }
-  
+
   // TODO: Add way to access single scenario.
 
   /* TODO: Refactor MIP solver status into its own class to handle
@@ -410,7 +410,7 @@ public:
 
       /* Check solver status for infeasibility/optimality */
       solverState lpStatus = rootSolver.getStatus();
-      
+
       // Only realistic solver states upon completion:
       // ProvenInfeasible, Optimal, ProvenUnbounded
       // Other solver states are intermediate states that should not
@@ -501,7 +501,7 @@ public:
 	branchOnFirstStage(primalSoln);
 	continue;
       }
-      
+
       // If we get to this point, we know that the first stage decision variables
       // are integer feasible, but the LP solution is not integer feasible, so
       // one of the second stage scenarios must not be integer feasible, and
@@ -522,7 +522,7 @@ public:
 
 
 int main(int argc, char **argv) {
-	
+
         // Initialize MPI
 	MPI_Init(&argc, &argv);
 
@@ -542,7 +542,7 @@ int main(int argc, char **argv) {
 	SMPSInput input(smpsrootname+".cor",smpsrootname+".tim",smpsrootname+".sto");
 
 	//scoped_ptr<SMPSInput> s(new SMPSInput(datarootname,nscen));
-	
+
         // Pass communicator to block angular data structures for data distribution
 	BAContext ctx(MPI_COMM_WORLD);
 
@@ -557,7 +557,7 @@ int main(int argc, char **argv) {
 		solver.loadStatus(argv[4]);
 	}
 
-	//solver.setDumpFrequency(5000,argv[3]);	
+	//solver.setDumpFrequency(5000,argv[3]);
 	solver.setPrimalTolerance(1e-6);
 	solver.setDualTolerance(1e-6);
 	solver.go();
@@ -569,8 +569,8 @@ int main(int argc, char **argv) {
 
 
 	// Change bounds...
-	
-	
+
+
 	// Write solution (if given enough input arguments)
 	if (argc >= 4 && argv[3][0] != '-') {
 		if (mype == 0) printf("Writing solution\n");
