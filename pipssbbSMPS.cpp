@@ -108,6 +108,7 @@ public:
   double objLB; // best lower bound on objective function value
 
   double intTol; // tolerance on integrality checks
+  double optGapTol; // tolerance on optimality gap between UB and LB.
 
   // max-heap data structure with nodes
   // TODO: Refactor to vector<BranchAndBound> & replace w/ make_heap, push_heap, pop_heap
@@ -133,11 +134,12 @@ public:
   //   be loaded from an SMPS file
   BranchAndBoundTree(const SMPSInput& smps): ctx(MPI_COMM_WORLD),
 					     mype(ctx.mype()),
-					     input(smps), 
+					     input(smps),
 					     rootSolver(input, ctx, PIPSSInterface::useDual),
 					     dims(input, ctx),
 					     objUB(COIN_DBL_MAX), objLB(-COIN_DBL_MAX),
 					     intTol(1e-6),
+					     optGapTol(1e-6),
 					     status(LoadedFromFile)
   {
 
@@ -436,38 +438,62 @@ public:
       // solution in that subtree can have a lesser objective function
       // value than the current upper bound on the optimal value of
       // the MILP objective function.
-      // TODO: Check if PIPS-S always minimizes; otherwise, must change logic.
       double lpObj = rootSolver.getObjective();
-
-      // TODO: Add tolerance check
       if (lpObj >= objUB) continue;
 
       /* Get primal solution */
       denseBAVector primalSoln(rootSolver.getPrimalSolution());
 
-      /* Fathom if integer feasible*/
-         
-      // If primal solution is integral:
-      //  - Update upper bound on objective function value
-      //  - Update current primal solution for that upper bound
+      /* If primal solution is integral: */
+      //  - Update solver status to PrimalFeasible
+      //  - Check if upper bound improved
+      //  - If so, update current primal solution for that upper bound
       //  - Fathom node, go to start of loop
 
       if(isLPIntFeas(primalSoln)) {
+	setStatusToPrimalFeasible();
+
 	// TODO: Maintain solution pool of best k solutions for k = some small value
 
-	/* Update upper bound if it's less than current best upper bound. */
+	/* Update upper bound if it's less than current best upper bound, and
+	   the LP solution is optimal (not unbounded). */
 	double newUB = rootSolver.getObjective();
-	if (newUB < objUB) {
-	  objUB = rootSolver.getObjective(); 
+	bool isNewUBbetter = (newUB < objUB);
+	if (isLPoptimal && isNewUBbetter) {
+	  objUB = rootSolver.getObjective();
 	  ubPrimalSolution.copyFrom(primalSoln);
 	}
+
 	continue;
       }
-      
-      /* Otherwise, branch. */
-      
+
       // TODO: Fathom by value dominance in breadth-first fashion?
 
+      /* Otherwise, primal solution is not integral: */
+      // - Check to see if lower bound can be updated
+      // - Branch
+
+      /* Lower bound update */
+      // If the LP solver returns an optimal solution AND that solution is
+      // greater than the current best lower bound, update the best lower bound
+      // on the objective function value.
+      if (isLPoptimal) {
+	if (lpObj >= objLB) {
+	  lpObj = objLB;
+	}
+      }
+
+      /* Optimality gap termination criteria: if gap between best
+	 upper bound and best lower bound on objective function is
+	 less than the optimality gap, stop the solver and return the
+	 feasible solution corresponding to the best upper bound. */
+      if (abs(objUB - objLB) <= optGapTol) {
+	assert(objLB <= objUB);
+	setStatusToOptimal();
+	break;
+      }
+
+      /* Branching */
       // Decide which stage to branch on:
       // If first stage decision variables not integer feasible,
       // branch on a first stage variable, go to start of loop
