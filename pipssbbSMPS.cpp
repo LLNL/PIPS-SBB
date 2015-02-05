@@ -372,10 +372,14 @@ public:
       //  - Fathom node, go to start of loop
 
       if(isLPIntFeas(primalSoln)) {
-	// TODO: Update only if upper bound less than current best upper bound.
 	// TODO: Maintain solution pool of best k solutions for k = some small value
-	objUB = rootSolver.getObjective(); 
-	ubPrimalSolution.copyFrom(primalSoln);
+
+	/* Update upper bound if it's less than current best upper bound. */
+	double newUB = rootSolver.getObjective();
+	if (newUB < objUB) {
+	  objUB = rootSolver.getObjective(); 
+	  ubPrimalSolution.copyFrom(primalSoln);
+	}
 	continue;
       }
       
