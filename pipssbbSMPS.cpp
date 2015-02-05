@@ -93,10 +93,7 @@ bool operator< (const BranchAndBoundNode& left,
   return left.parentObj < right.parentObj;
 }
 
-// Overload the "assignment" operator so that priority_queue can use it
-// for instantiation because denseBAVector & BAFlagVector do not have
-// assignment operators or copy constructors.
-// void BranchAndBoundNode::
+// TODO: Check if PIPS-S always minimizes; otherwise, must change logic.
 
 class BranchAndBoundTree {
 public:
