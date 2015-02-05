@@ -143,20 +143,30 @@ public:
 					     status(LoadedFromFile)
   {
 
+    if (0 == mype) cout << "Calling B&B tree constructor!\n";
+
     /* Initialize branch-and-bound tree/heap */
     // Get {lower, upper} bounds on decision variables, lower bound on objective function
     // value from parent LP, initialize a node, and push onto heap to start.
     assert (heap.empty()); // heap should be empty to start
 
     BAFlagVector<variableState> states(dims, ctx, PrimalVector);
-    rootSolver.getStates(states);
+    // rootSolver.getStates(states);
     rootSolver.setPrimalTolerance(1e-6);
     rootSolver.setDualTolerance(1e-6);
 
+    // TODO: Debug segfault.
+    // Bug hypothesis so far: Since I have not yet called "go" on rootSolver
+    // and thus I have not yet solved the LP relaxation, the PIPSSInterface
+    // object has not yet allocated memory for lower and upper bounds,
+    // and also states. Thus, calling the getters for ANY of these members
+    // yields a segfault. This hypothesis has been tested empirically.
+    if (0 == mype) cout << "This line is still called!\n";
     heap.push(BranchAndBoundNode(objLB,
 				 rootSolver.getLB(),
 				 rootSolver.getUB(),
 				 states));
+    if (0 == mype) cout << "First line not called!\n";
 
   }
 
@@ -566,6 +576,7 @@ int main(int argc, char **argv) {
         // Get SMPS file name and open SMPS file
 	string smpsrootname(argv[1]);
 
+	if (0 == mype) cout << "Reading SMPS input!\n";
 	SMPSInput input(smpsrootname+".cor",smpsrootname+".tim",smpsrootname+".sto");
 
 	//scoped_ptr<SMPSInput> s(new SMPSInput(datarootname,nscen));
