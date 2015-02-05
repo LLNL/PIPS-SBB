@@ -423,7 +423,10 @@ public:
       // If LP solver returns infeasibility, fathom node, go to start of loop
       if (isLPinfeasible) continue;
 
-      // Otherwise, LP is optimal or unbounded
+      // Otherwise, LP is optimal or unbounded.
+      // If LP solver returns optimal, then the objective is bounded below.
+      // TODO: Change solver status to "Bounded".
+
       // TODO: Combine the integrality and branching steps later
 
       /* Fathom by value dominance */
