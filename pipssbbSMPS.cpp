@@ -116,6 +116,13 @@ public:
   // TODO: Refactor to vector<BranchAndBound> & replace w/ make_heap, push_heap, pop_heap
   std::priority_queue<BranchAndBoundNode> heap;
 
+  // Solver status; can only be in the set {LoadedFromFile, Initialized,
+  // PrimalFeasible, Optimal, ProvenUnbounded, ProvenInfeasible, Stopped}
+  // because there is no duality theory, and currently, the only interface
+  // to the solver has to load problem data from a file as one of the first
+  // steps.
+  solverState status;
+
 public:
   // Upon constructing the B&B tree:
   // - instantiate MPI communicator context for block angular objects
@@ -125,13 +132,16 @@ public:
   // - instantiate dimensions object for holding problem
   //      dimension information for allocating vectors...
   // - instantiate objective function upper bound to +infty (or a value close to that)
+  // - set solver status to "LoadedFromFile" because this interface forces MILP to
+  //   be loaded from an SMPS file
   BranchAndBoundTree(const SMPSInput& smps): ctx(MPI_COMM_WORLD),
 					     mype(ctx.mype()),
 					     input(smps), 
 					     rootSolver(input, ctx, PIPSSInterface::useDual),
 					     dims(input, ctx),
 					     objUB(COIN_DBL_MAX), objLB(-COIN_DBL_MAX),
-					     intTol(1e-6)
+					     intTol(1e-6),
+					     status(LoadedFromFile)
   {
 
     /* Initialize branch-and-bound tree/heap */
@@ -329,15 +339,15 @@ public:
       rootSolver.go();
 
       /* Check solver status for infeasibility/optimality */
-      solverState status = rootSolver.getStatus();
+      solverState lpStatus = rootSolver.getStatus();
       
       // Only realistic solver states upon completion:
       // ProvenInfeasible, Optimal, ProvenUnbounded
       // Other solver states are intermediate states that should not
       // hold upon return from rootSolver.
-      bool isLPinfeasible = (ProvenInfeasible == status);
-      bool isLPunbounded = (ProvenUnbounded == status);
-      bool isLPoptimal = (Optimal == status);
+      bool isLPinfeasible = (ProvenInfeasible == lpStatus);
+      bool isLPunbounded = (ProvenUnbounded == lpStatus);
+      bool isLPoptimal = (Optimal == lpStatus);
       bool isLPother = (!isLPinfeasible && !isLPunbounded && !isLPoptimal);
       assert (isLPother); // Error if not infeasible/unbounded/optimal
 
