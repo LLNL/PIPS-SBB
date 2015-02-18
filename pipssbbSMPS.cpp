@@ -50,7 +50,7 @@ public:
     parentObj(parentObjLB),
     lb(lowerBounds),
     ub(upperBounds),
-    parentStates(states)  {}
+    parentStates(states) {}
 
   // Add copy constructor so that priority_queue can use it for
   // instantiation because denseBAVector and BAFlagVector do not have
@@ -66,16 +66,28 @@ public:
   // have assignment operators or copy constructors. Satisfies
   // "Rule of 3". (For C++11, follow "Rule of 5".)
   BranchAndBoundNode& operator=(const BranchAndBoundNode& sourceNode) {
-    // Check for self-assignment
-    if (this == &sourceNode) return *this;
 
-    // Copy members:
+    /* Diagnostic code: delete when no longer needed */
+    /* Also assumes communicator is MPI_COMM_WORLD. */
+    int mype;
+    MPI_Comm_rank(MPI_COMM_WORLD, &mype);
+
+    if (mype == 0) cout << "Calling copy assignment operator!\n";
+    // Check for self-assignment
+    if (this == &sourceNode) {
+
+      if (mype == 0) cout << "Calling self-assignment branch!\n";
+      return *this;
+    }
+
+    // Copy-assign each member individually
     parentObj = sourceNode.parentObj;
-    lb.copyFrom(sourceNode.lb);
-    ub.copyFrom(sourceNode.ub);
-    parentStates.copyFrom(sourceNode.parentStates);
+    lb = sourceNode.lb;
+    ub = sourceNode.ub;
+    parentStates = sourceNode.parentStates;
 
     // Return existing object for chaining.
+    if (mype == 0) cout << "Exiting copy assignment operator!\n";
     return *this;
   }
 
@@ -101,7 +113,8 @@ public:
   int mype; // MPI rank of process storing tree (relative to comm in ctx)
   SMPSInput input; // SMPS input file for reading in block angular MILP
   PIPSSInterface rootSolver; // PIPS-S instance for root LP relaxation
-  BADimensions dims; // Dimension object for instantiating
+  BADimensions dims; // Dimension object for instantiating warm start information
+  BADimensionsSlacks dimsSlacks; // Dimension object for warm start info
 
   double objUB; // best upper bound on objective function value
   denseBAVector ubPrimalSolution; // primal solution for best UB on obj
@@ -137,6 +150,7 @@ public:
 					     input(smps),
 					     rootSolver(input, ctx, PIPSSInterface::useDual),
 					     dims(input, ctx),
+					     dimsSlacks(dims),
 					     objUB(COIN_DBL_MAX), objLB(-COIN_DBL_MAX),
 					     intTol(1e-6),
 					     optGapTol(1e-6),
@@ -150,10 +164,15 @@ public:
     // value from parent LP, initialize a node, and push onto heap to start.
     assert (heap.empty()); // heap should be empty to start
 
-    BAFlagVector<variableState> states(dims, ctx, PrimalVector);
-    // rootSolver.getStates(states);
     rootSolver.setPrimalTolerance(1e-6);
     rootSolver.setDualTolerance(1e-6);
+
+    // TODO: Replace with real presolve.
+    // For now, "cheat" by solving root LP before populating root node.
+    // A warm start of the root node means that the root node solve
+    // inside the B&B tree will not cost very much -- just the PIPS-S overhead.
+
+    rootSolver.go();
 
     // TODO: Debug segfault.
     // Bug hypothesis so far: Since I have not yet called "go" on rootSolver
@@ -161,12 +180,99 @@ public:
     // object has not yet allocated memory for lower and upper bounds,
     // and also states. Thus, calling the getters for ANY of these members
     // yields a segfault. This hypothesis has been tested empirically.
-    if (0 == mype) cout << "This line is still called!\n";
-    heap.push(BranchAndBoundNode(objLB,
-				 rootSolver.getLB(),
-				 rootSolver.getUB(),
-				 states));
-    if (0 == mype) cout << "First line not called!\n";
+
+
+
+    // Cannot use getStates, getLB, or getUB from rootSolver until at least one
+    // LP is solved. So leave "states" uninitialized and get LB and UB
+    // information from SMPS input file.
+
+    if (0 == mype) cout << "Getting bounds for root node from presolve!\n";
+
+    // This code block DOES work, but it's not really what I want to do deeper
+    // in the B&B tree...
+    //const denseBAVector &mylb = rootSolver.getLB();
+    //const denseBAVector &myub = rootSolver.getUB();
+
+    //denseBAVector lb(mylb), ub(myub);
+    //denseBAVector lb(rootSolver.getLB()), ub(rootSolver.getUB());
+
+    // This code block doesn't really work, but I want to do something like it.
+    if (0 == mype) cout << "Allocating bounds for root node!\n";
+    denseBAVector lb, ub;
+    // lb.allocate(dims, ctx, PrimalVector);
+    // ub.allocate(dims, ctx, PrimalVector);
+    lb.allocate(dimsSlacks, ctx, PrimalVector);
+    ub.allocate(dimsSlacks, ctx, PrimalVector);
+    if (0 == mype) cout << "Bounds allocated!\n";
+    lb.copyFrom(rootSolver.getLB());
+    ub.copyFrom(rootSolver.getUB());
+    if (0 == mype) cout << "Setting bounds for root node from presolve!\n";
+
+    // Heinous elementwise copy; also something I don't want to do...
+    /*
+      for (int col = 0; col < input.nFirstStageVars(); col++) {
+      lb.getFirstStageVec()[col] = input.getFirstStageColLB()[col];
+      ub.getFirstStageVec()[col] = input.getFirstStageColUB()[col];
+    }
+
+    for (int scen = 0; scen < input.nScenarios(); scen++) {
+      if (ctx.assignedScenario(scen)) {
+	for (int col = 0; col < input.nSecondStageVars(scen); col++) {
+	  lb.getSecondStageVec(scen)[col] = input.getSecondStageColLB(scen)[col];
+	  ub.getSecondStageVec(scen)[col] = input.getSecondStageColUB(scen)[col];
+	}
+      }
+      }
+    */
+
+    // TODO: Replace with reference?
+    //BAFlagVector<variableState> states(dims, ctx, PrimalVector);
+    BAFlagVector<variableState> states(dimsSlacks, ctx, PrimalVector);
+    rootSolver.getStates(states);
+
+
+    // TODO: Figure out if type is correct! Use BAFlagVector<T>::vectorType()
+    // to get vector type of this vector.
+
+    BranchAndBoundNode rootNode(objLB, lb, ub, states);
+
+    /*
+    // Print out upper bounds to see if they make sense at all...
+    for (int i = 0; i < dims.numFirstStageVars(); i++) {
+      if (0 == mype) cout << "First stage UB(" << i << ") = "
+			  << ub.getFirstStageVec()[i] << endl;
+    }
+    for (int scen = 0; scen < dims.numScenarios(); scen++) {
+      if(ctx.assignedScenario(scen)) {
+	for (int i = 0; i < dims.numSecondStageVars(scen); i++) {
+	cout << "Processor " << mype << ": Second stage scenario("
+	     << scen << "), UB(" << i << ") = "
+	     << ub.getSecondStageVec(scen)[i] << endl;
+	}
+      }
+    }
+    */
+
+    /*
+    if (0 == mype) cout << "Copying root node as test!\n";
+    BranchAndBoundNode newNode = rootNode;
+    if (0 == mype) cout << "Root node copied via copy-assignment!\n";
+    if (0 == mype) cout << "Destroying copied root node!\n";
+    newNode.BranchAndBoundNode::~BranchAndBoundNode();
+    if (0 == mype) cout << "Destroyed copied root node!\n";
+    */
+
+    if (0 == mype) cout << "Instantiate vector for testing!\n";
+    vector<denseBAVector> willSTLclassWork;
+    if (0 == mype) cout << "Push denseBAVector onto vector!\n";
+    willSTLclassWork.push_back(rootNode.ub);
+    if (0 == mype) cout << "Pop denseBAVector from vector!\n";
+    willSTLclassWork.pop_back();
+
+    if (0 == mype) cout << "Pushing root node onto B&B tree!\n";
+    heap.push(rootNode);
+    if (0 == mype) cout << "Exiting B&B constructor!\n";
 
   }
 
@@ -387,10 +493,11 @@ public:
     // TODO: Add tolerance on optimality gap, time limit option.
     while (true) {
 
-      if (0 == mype) cout << "Heap is empty!\n";
+
 
       /* If heap is empty, update status to Stopped (if possible) and break. */
       if (heap.empty()) {
+	if (0 == mype) cout << "Heap is empty!\n";
 	setStatusToStopped();
 
 	/* If solver status is primal feasible, and the heap is empty, then
@@ -413,9 +520,10 @@ public:
       }
 
       /* Get top-most node and pop it off of heap. */
+      if (0 == mype) cout << "Copying node " << ++nodeNumber << " off tree!\n";
       BranchAndBoundNode currentNode(heap.top());
+      if (0 == mype) cout << "Popping node " << nodeNumber << " off tree!\n";
       heap.pop();
-      if (0 == mype) cout << "Popping node " << ++nodeNumber << " off tree!\n";
 
       /* Set bounds of LP decision variables from BranchAndBoundNode */
       if (0 == mype) cout << "Setting bounds for LP subproblem!\n";
@@ -466,6 +574,7 @@ public:
       // value than the current upper bound on the optimal value of
       // the MILP objective function.
       double lpObj = rootSolver.getObjective();
+      // TODO: Make floating point comparisons safer.
       if (lpObj >= objUB) {
 	if (0 == mype) cout << "Fathoming node "
 			    << nodeNumber << " by value dominance!\n";
