@@ -27,6 +27,42 @@ bool isIntFeas(double x, double tol) {
     return ( (abs(floor(x) - x) <= tol) || (abs(ceil(x) - x) <= tol) );
 }
 
+// Outputs solver status:
+void outputLPStatus(solverState lpStatus) {
+  cout << "PIPS-S has returned ";
+  string status;
+  switch(lpStatus) {
+  case Uninitialized:
+    status = "Uninitialized";
+    break;
+  case LoadedFromFile:
+    status = "LoadedFromFile";
+    break;
+  case Initialized:
+    status = "Initialized";
+    break;
+  case PrimalFeasible:
+    status = "PrimalFeasible";
+    break;
+  case DualFeasible:
+    status = "DualFeasible";
+    break;
+  case Optimal:
+    status = "Optimal";
+    break;
+  case ProvenUnbounded:
+    status = "ProvenUnbounded";
+    break;
+  case ProvenInfeasible:
+    status = "ProvenInfeasible";
+    break;
+  case Stopped:
+    status = "Stopped";
+    break;
+  }
+  cout << status << endl;
+}
+
 class BranchAndBoundNode {
 public:
   //PIPSSInterface* solver; // PIPS-S instance
@@ -151,7 +187,8 @@ public:
 					     rootSolver(input, ctx, PIPSSInterface::useDual),
 					     dims(input, ctx),
 					     dimsSlacks(dims),
-					     objUB(COIN_DBL_MAX), objLB(-COIN_DBL_MAX),
+					     objUB(COIN_DBL_MAX),
+					     objLB(-COIN_DBL_MAX),
 					     intTol(1e-6),
 					     optGapTol(1e-6),
 					     status(LoadedFromFile)
@@ -181,8 +218,6 @@ public:
     // and also states. Thus, calling the getters for ANY of these members
     // yields a segfault. This hypothesis has been tested empirically.
 
-
-
     // Cannot use getStates, getLB, or getUB from rootSolver until at least one
     // LP is solved. So leave "states" uninitialized and get LB and UB
     // information from SMPS input file.
@@ -208,6 +243,15 @@ public:
     lb.copyFrom(rootSolver.getLB());
     ub.copyFrom(rootSolver.getUB());
     if (0 == mype) cout << "Setting bounds for root node from presolve!\n";
+
+    // Allocate primal solution for upper bound (remove this code once it
+    // works; move to B&B tree)
+    if (0 == mype) cout << "Allocating primal solution!" << endl;
+    //ubPrimalSolution.allocate(dims, ctx, PrimalVector);
+    ubPrimalSolution.allocate(dimsSlacks, ctx, PrimalVector);
+    if (0 == mype) cout << "Getting primal solution!" << endl;
+    ubPrimalSolution.copyFrom(rootSolver.getPrimalSolution());
+    if (0 == mype) cout << "MIP Primal solution updated!" << endl;
 
     // Heinous elementwise copy; also something I don't want to do...
     /*
@@ -272,6 +316,9 @@ public:
 
     if (0 == mype) cout << "Pushing root node onto B&B tree!\n";
     heap.push(rootNode);
+
+
+
     if (0 == mype) cout << "Exiting B&B constructor!\n";
 
   }
@@ -358,7 +405,7 @@ public:
     double lpObj = rootSolver.getObjective();
 
     /* Get warm start information from solver for B&B node..*/
-    BAFlagVector<variableState> states(dims, ctx, PrimalVector);
+    BAFlagVector<variableState> states(dimsSlacks, ctx, PrimalVector);
     rootSolver.getStates(states);
 
     // Lower (lb) and upper (ub) bounds for two child nodes:
@@ -386,7 +433,7 @@ public:
     double lpObj = rootSolver.getObjective();
 
     // Warm start information
-    BAFlagVector<variableState> states(dims, ctx, PrimalVector);
+    BAFlagVector<variableState> states(dimsSlacks, ctx, PrimalVector);
     rootSolver.getStates(states);
 
     // Lower (lb) and upper (ub) bounds for two child nodes:
@@ -493,8 +540,6 @@ public:
     // TODO: Add tolerance on optimality gap, time limit option.
     while (true) {
 
-
-
       /* If heap is empty, update status to Stopped (if possible) and break. */
       if (heap.empty()) {
 	if (0 == mype) cout << "Heap is empty!\n";
@@ -546,14 +591,21 @@ public:
       // ProvenInfeasible, Optimal, ProvenUnbounded
       // Other solver states are intermediate states that should not
       // hold upon return from rootSolver.
+      if (0 == mype) outputLPStatus(lpStatus);
+
       bool isLPinfeasible = (ProvenInfeasible == lpStatus);
+      if (0 == mype) cout << "isLPinfeasible = " << isLPinfeasible << endl;
       bool isLPunbounded = (ProvenUnbounded == lpStatus);
+      if (0 == mype) cout << "isLPunbounded = " << isLPunbounded << endl;
       bool isLPoptimal = (Optimal == lpStatus);
+      if (0 == mype) cout << "isLPoptimal = " << isLPoptimal << endl;
       bool isLPother = (!isLPinfeasible && !isLPunbounded && !isLPoptimal);
-      assert (isLPother); // Error if not infeasible/unbounded/optimal
+      if (0 == mype) cout << "isLPother = " << isLPother << endl;
+      assert (!isLPother); // Error if not infeasible/unbounded/optimal
 
       /* Fathom by infeasibility */
       // If LP solver returns infeasibility, fathom node, go to start of loop
+      if (0 == mype) cout << "Checking for infeasibility...\n";
       if (isLPinfeasible) {
 	if (0 == mype) cout << "Fathoming node "
 			    << nodeNumber << " by infeasibility!\n";
@@ -573,8 +625,10 @@ public:
       // solution in that subtree can have a lesser objective function
       // value than the current upper bound on the optimal value of
       // the MILP objective function.
+      if (0 == mype) cout << "Getting LP objective...\n";
       double lpObj = rootSolver.getObjective();
       // TODO: Make floating point comparisons safer.
+      if (0 == mype) cout << "Checking for value dominance...\n";
       if (lpObj >= objUB) {
 	if (0 == mype) cout << "Fathoming node "
 			    << nodeNumber << " by value dominance!\n";
@@ -582,6 +636,9 @@ public:
       }
 
       /* Get primal solution */
+      if (0 == mype) cout << "Getting primal solution...\n";
+      //      denseBAVector primalSoln;
+      //primalSoln.allocate(dimsSlacks, ctx, PrimalVector);
       denseBAVector primalSoln(rootSolver.getPrimalSolution());
 
       /* If primal solution is integral: */
@@ -590,6 +647,7 @@ public:
       //  - If so, update current primal solution for that upper bound
       //  - Fathom node, go to start of loop
 
+      if (0 == mype) cout << "Checking for integrality of primal solution...\n";
       if(isLPIntFeas(primalSoln)) {
 	if (0 == mype) cout << "Node " << nodeNumber << " is integer feasible!\n";
 	setStatusToPrimalFeasible();
@@ -655,6 +713,9 @@ public:
       branchOnSecondStage(primalSoln);
       continue;
     }
+
+    if (0 == mype) cout << "Objective function value = " << objUB << endl;
+    if (0 == mype) cout << "Objective function LB = " << objLB << endl;
 
   }
 
