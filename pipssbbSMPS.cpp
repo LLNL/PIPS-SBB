@@ -415,6 +415,8 @@ public:
 
     // For now, get minimal index of an integer infeasible variable
     int branchCol = getFirstStageMinIntInfeasCol(primalSoln);
+    if (0 == mype) cout << "Branching on first stage variable "
+			<< branchCol << "!\n";
     ubFloor.getFirstStageVec()[branchCol] =
       floor(primalSoln.getFirstStageVec()[branchCol]);
     lbCeil.getFirstStageVec()[branchCol] =
@@ -446,15 +448,17 @@ public:
     // get the minimal index of an integer infeasible variable.
 
     int branchableScen(input.nScenarios() + 1);
-    int scen = 0;
-    for (; scen < input.nScenarios(); scen++)
+    if (0 == mype) cout << "branchableScen = " << branchableScen << endl;
+    for (int scen = 0; scen < input.nScenarios(); scen++)
       {
 	if(ctx.assignedScenario(scen)) {
 	  if(!isSecondStageIntFeas(primalSoln, scen)) {
 	    branchableScen = scen;
+	    break;
 	  }
 	}
-	}
+      }
+
     int branchScen;
     int errorFlag = MPI_Allreduce(&branchableScen,
 				  &branchScen,
@@ -462,21 +466,25 @@ public:
 				  MPI_INT,
 				  MPI_MIN,
 				  ctx.comm());
+    if (0 == mype) cout << "Branching on second stage scenario "
+			<< branchScen << "!\n";
+    cout << "Processor " << mype << " will branch on second stage scenario "
+	 << branchScen << "!\n";
 
     // Then, for that scenario number, get the minimal index of
     // an integer infeasible decision variable, and branch on that column
     if(ctx.assignedScenario(branchScen)) {
-      int branchCol = getSecondStageMinIntInfeasCol(primalSoln, scen);
+      int branchCol = getSecondStageMinIntInfeasCol(primalSoln, branchScen);
       ubFloor.getSecondStageVec(branchScen)[branchCol] =
 	floor(primalSoln.getSecondStageVec(branchScen)[branchCol]);
       lbCeil.getSecondStageVec(branchScen)[branchCol] =
 	ceil(primalSoln.getSecondStageVec(branchScen)[branchCol]);
+    }
 
       BranchAndBoundNode childFloor(lpObj, lbFloor, ubFloor, states);
       BranchAndBoundNode childCeil(lpObj, lbCeil, ubCeil, states);
       heap.push(childFloor);
       heap.push(childCeil);
-    }
   }
 
   // TODO: Add way to access single scenario.
