@@ -158,6 +158,9 @@ public:
 
   double intTol; // tolerance on integrality checks
   double optGapTol; // tolerance on optimality gap between UB and LB.
+  double lpPrimalTol; // tolerance on LP primal problems
+  double lpDualTol; // tolerance on LP dual problems
+  double compTol; // tolerance on LP objective function comparisons
 
   // max-heap data structure with nodes
   // TODO: Refactor to vector<BranchAndBound> & replace w/ make_heap, push_heap, pop_heap
@@ -179,8 +182,13 @@ public:
   // - instantiate dimensions object for holding problem
   //      dimension information for allocating vectors...
   // - instantiate objective function upper bound to +infty (or a value close to that)
+  // - set integrality tolerance
+  // - set optimality gap tolerances
+  // - set LP solver tolerances
+  // - set comparison tolerance to primal tolerance for now
   // - set solver status to "LoadedFromFile" because this interface forces MILP to
   //   be loaded from an SMPS file
+
   BranchAndBoundTree(const SMPSInput& smps): ctx(MPI_COMM_WORLD),
 					     mype(ctx.mype()),
 					     input(smps),
@@ -191,6 +199,9 @@ public:
 					     objLB(-COIN_DBL_MAX),
 					     intTol(1e-6),
 					     optGapTol(1e-6),
+					     lpPrimalTol(1e-6),
+					     lpDualTol(1e-6),
+					     compTol(lpPrimalTol),
 					     status(LoadedFromFile)
   {
 
@@ -201,8 +212,8 @@ public:
     // value from parent LP, initialize a node, and push onto heap to start.
     assert (heap.empty()); // heap should be empty to start
 
-    rootSolver.setPrimalTolerance(1e-6);
-    rootSolver.setDualTolerance(1e-6);
+    rootSolver.setPrimalTolerance(lpPrimalTol);
+    rootSolver.setDualTolerance(lpDualTol);
 
     // TODO: Replace with real presolve.
     // For now, "cheat" by solving root LP before populating root node.
@@ -255,9 +266,10 @@ public:
     BAFlagVector<variableState> states(dimsSlacks, ctx, PrimalVector);
     rootSolver.getStates(states);
 
-
-    // TODO: Figure out if type is correct! Use BAFlagVector<T>::vectorType()
-    // to get vector type of this vector.
+    // Update global lower bound; really need to check feasibility, etc.
+    // here, but I'm going to move this code to the B&B tree.
+    double lpObj = rootSolver.getObjective();
+    if ((lpObj - compTol) >= objLB) objLB = lpObj;
 
     BranchAndBoundNode rootNode(objLB, lb, ub, states);
 
@@ -592,7 +604,7 @@ public:
       double lpObj = rootSolver.getObjective();
       // TODO: Make floating point comparisons safer.
       if (0 == mype) cout << "Checking for value dominance...\n";
-      if (lpObj >= objUB) {
+      if ((lpObj - compTol) >= objUB) {
 	if (0 == mype) cout << "Fathoming node "
 			    << nodeNumber << " by value dominance!\n";
 	continue;
@@ -620,7 +632,7 @@ public:
 	/* Update upper bound if it's less than current best upper bound, and
 	   the LP solution is optimal (not unbounded). */
 	double newUB = rootSolver.getObjective();
-	bool isNewUBbetter = (newUB < objUB);
+	bool isNewUBbetter = (newUB < (objUB - compTol));
 	if (isLPoptimal && isNewUBbetter) {
 	  if (0 == mype) cout << "Updating best upper bound to " << newUB << endl;
 	  objUB = rootSolver.getObjective();
