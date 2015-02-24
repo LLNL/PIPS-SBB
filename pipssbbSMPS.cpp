@@ -396,24 +396,29 @@ public:
     denseBAVector lbFloor(rootSolver.getLB()), lbCeil(rootSolver.getLB());
     denseBAVector ubFloor(rootSolver.getUB()), ubCeil(rootSolver.getUB());
 
-    // For now, find the minimum scenario number such that one of its
-    // decision variables is integer infeasible. In that scenario number,
-    // get the minimal index of an integer infeasible variable.
+    // For now, find the minimum scenario number on each rank such
+    // that one of its decision variables is integer infeasible.
+    // Call that scenario number the branching candidate for each rank.
+    // Then find the minimum branching candidate over all ranks. Branch on
+    /// that scenario.
 
-    int branchableScen(input.nScenarios() + 1);
-    if (0 == mype) cout << "branchableScen = " << branchableScen << endl;
+    // In the scenario number selected for branching, get the minimal
+    // index of an integer infeasible variable.
+
+    int myRankBranchScen(input.nScenarios() + 1);
+    //if (0 == mype) cout << "myRankBranchScen = " << myRankBranchScen << endl;
     for (int scen = 0; scen < input.nScenarios(); scen++)
       {
 	if(ctx.assignedScenario(scen)) {
 	  if(!isSecondStageIntFeas(primalSoln, scen)) {
-	    branchableScen = scen;
+	    myRankBranchScen = scen;
 	    break;
 	  }
 	}
       }
 
     int branchScen;
-    int errorFlag = MPI_Allreduce(&branchableScen,
+    int errorFlag = MPI_Allreduce(&myRankBranchScen,
 				  &branchScen,
 				  1,
 				  MPI_INT,
