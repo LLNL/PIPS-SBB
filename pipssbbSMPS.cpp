@@ -665,7 +665,7 @@ public:
 	 less than the optimality gap, stop the solver and return the
 	 feasible solution corresponding to the best upper bound. */
       if (abs(objUB - objLB) <= optGapTol) {
-	assert(objLB <= objUB);
+	assert(objLB <= objUB); // this statement could be tripped by numerical error
 	setStatusToOptimal();
 	if (0 == mype) cout << "Optimality gap reached! Terminating!\n";
 	break;
