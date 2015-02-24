@@ -108,11 +108,11 @@ public:
     int mype;
     MPI_Comm_rank(MPI_COMM_WORLD, &mype);
 
-    if (mype == 0) cout << "Calling copy assignment operator!\n";
+    //    if (0 == mype) cout << "Calling copy assignment operator!\n";
     // Check for self-assignment
     if (this == &sourceNode) {
 
-      if (mype == 0) cout << "Calling self-assignment branch!\n";
+      //if (0 == mype) cout << "Calling self-assignment branch!\n";
       return *this;
     }
 
@@ -123,7 +123,7 @@ public:
     parentStates = sourceNode.parentStates;
 
     // Return existing object for chaining.
-    if (mype == 0) cout << "Exiting copy assignment operator!\n";
+    //if (0 == mype) cout << "Exiting copy assignment operator!\n";
     return *this;
   }
 
@@ -194,7 +194,7 @@ public:
 					     status(LoadedFromFile)
   {
 
-    if (0 == mype) cout << "Calling B&B tree constructor!\n";
+    //if (0 == mype) cout << "Calling B&B tree constructor!\n";
 
     /* Initialize branch-and-bound tree/heap */
     // Get {lower, upper} bounds on decision variables, lower bound on objective function
@@ -234,11 +234,11 @@ public:
 
     /*
     // This code block doesn't really work, but I want to do something like it.
-    if (0 == mype) cout << "Allocating bounds for root node!\n";
+    //if (0 == mype) cout << "Allocating bounds for root node!\n";
     denseBAVector lb, ub;
     lb.allocate(dimsSlacks, ctx, PrimalVector);
     ub.allocate(dimsSlacks, ctx, PrimalVector);
-    if (0 == mype) cout << "Bounds allocated!\n";
+    //if (0 == mype) cout << "Bounds allocated!\n";
     lb.copyFrom(rootSolver.getLB());
     ub.copyFrom(rootSolver.getUB());
     //if (0 == mype) cout << "Setting bounds for root node from presolve!\n";
@@ -248,7 +248,7 @@ public:
     // works; move to B&B tree)
     //if (0 == mype) cout << "Allocating primal solution!" << endl;
     ubPrimalSolution.allocate(dimsSlacks, ctx, PrimalVector);
-    if (0 == mype) cout << "Getting primal solution!" << endl;
+    //if (0 == mype) cout << "Getting primal solution!" << endl;
     ubPrimalSolution.copyFrom(rootSolver.getPrimalSolution());
     //if (0 == mype) cout << "MIP Primal solution updated!" << endl;
 
@@ -263,10 +263,7 @@ public:
 
     //if (0 == mype) cout << "Pushing root node onto B&B tree!\n";
     heap.push(rootNode);
-
-
-
-    if (0 == mype) cout << "Exiting B&B constructor!\n";
+    //if (0 == mype) cout << "Exiting B&B constructor!\n";
 
   }
 
@@ -533,7 +530,7 @@ public:
       /* Get top-most node and pop it off of heap. */
       if (0 == mype) cout << "Copying node " << ++nodeNumber << " off tree!\n";
       BranchAndBoundNode currentNode(heap.top());
-      if (0 == mype) cout << "Popping node " << nodeNumber << " off tree!\n";
+      //if (0 == mype) cout << "Popping node " << nodeNumber << " off tree!\n";
       heap.pop();
 
       /* Set bounds of LP decision variables from BranchAndBoundNode */
@@ -560,13 +557,13 @@ public:
       if (0 == mype) outputLPStatus(lpStatus);
 
       bool isLPinfeasible = (ProvenInfeasible == lpStatus);
-      if (0 == mype) cout << "isLPinfeasible = " << isLPinfeasible << endl;
+      //if (0 == mype) cout << "isLPinfeasible = " << isLPinfeasible << endl;
       bool isLPunbounded = (ProvenUnbounded == lpStatus);
-      if (0 == mype) cout << "isLPunbounded = " << isLPunbounded << endl;
+      //if (0 == mype) cout << "isLPunbounded = " << isLPunbounded << endl;
       bool isLPoptimal = (Optimal == lpStatus);
-      if (0 == mype) cout << "isLPoptimal = " << isLPoptimal << endl;
+      //if (0 == mype) cout << "isLPoptimal = " << isLPoptimal << endl;
       bool isLPother = (!isLPinfeasible && !isLPunbounded && !isLPoptimal);
-      if (0 == mype) cout << "isLPother = " << isLPother << endl;
+      //if (0 == mype) cout << "isLPother = " << isLPother << endl;
       assert (!isLPother); // Error if not infeasible/unbounded/optimal
 
       /* Fathom by infeasibility */
@@ -705,7 +702,7 @@ int main(int argc, char **argv) {
 
         // Help information if not enough arguments
 	if (argc < 2) {
-		if (mype == 0) printf("Usage: %s [SMPS root name]\n",argv[0]);
+		if (0 == mype) printf("Usage: %s [SMPS root name]\n",argv[0]);
 		return 1;
 	}
 
@@ -739,9 +736,9 @@ int main(int argc, char **argv) {
 
 	// Write solution (if given enough input arguments)
 	if (argc >= 4 && argv[3][0] != '-') {
-		if (mype == 0) printf("Writing solution\n");
+		if (0 == mype) printf("Writing solution\n");
 		solver.writeStatus(argv[3]);
-		if (mype == 0) printf("Finished writing solution\n");
+		if (0 == mype) printf("Finished writing solution\n");
 	}
 	*/
 
