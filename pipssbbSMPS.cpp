@@ -230,48 +230,28 @@ public:
     //const denseBAVector &myub = rootSolver.getUB();
 
     //denseBAVector lb(mylb), ub(myub);
-    //denseBAVector lb(rootSolver.getLB()), ub(rootSolver.getUB());
+    denseBAVector lb(rootSolver.getLB()), ub(rootSolver.getUB());
 
+    /*
     // This code block doesn't really work, but I want to do something like it.
     if (0 == mype) cout << "Allocating bounds for root node!\n";
     denseBAVector lb, ub;
-    // lb.allocate(dims, ctx, PrimalVector);
-    // ub.allocate(dims, ctx, PrimalVector);
     lb.allocate(dimsSlacks, ctx, PrimalVector);
     ub.allocate(dimsSlacks, ctx, PrimalVector);
     if (0 == mype) cout << "Bounds allocated!\n";
     lb.copyFrom(rootSolver.getLB());
     ub.copyFrom(rootSolver.getUB());
-    if (0 == mype) cout << "Setting bounds for root node from presolve!\n";
+    //if (0 == mype) cout << "Setting bounds for root node from presolve!\n";
+    */
 
     // Allocate primal solution for upper bound (remove this code once it
     // works; move to B&B tree)
-    if (0 == mype) cout << "Allocating primal solution!" << endl;
-    //ubPrimalSolution.allocate(dims, ctx, PrimalVector);
+    //if (0 == mype) cout << "Allocating primal solution!" << endl;
     ubPrimalSolution.allocate(dimsSlacks, ctx, PrimalVector);
     if (0 == mype) cout << "Getting primal solution!" << endl;
     ubPrimalSolution.copyFrom(rootSolver.getPrimalSolution());
-    if (0 == mype) cout << "MIP Primal solution updated!" << endl;
+    //if (0 == mype) cout << "MIP Primal solution updated!" << endl;
 
-    // Heinous elementwise copy; also something I don't want to do...
-    /*
-      for (int col = 0; col < input.nFirstStageVars(); col++) {
-      lb.getFirstStageVec()[col] = input.getFirstStageColLB()[col];
-      ub.getFirstStageVec()[col] = input.getFirstStageColUB()[col];
-    }
-
-    for (int scen = 0; scen < input.nScenarios(); scen++) {
-      if (ctx.assignedScenario(scen)) {
-	for (int col = 0; col < input.nSecondStageVars(scen); col++) {
-	  lb.getSecondStageVec(scen)[col] = input.getSecondStageColLB(scen)[col];
-	  ub.getSecondStageVec(scen)[col] = input.getSecondStageColUB(scen)[col];
-	}
-      }
-      }
-    */
-
-    // TODO: Replace with reference?
-    //BAFlagVector<variableState> states(dims, ctx, PrimalVector);
     BAFlagVector<variableState> states(dimsSlacks, ctx, PrimalVector);
     rootSolver.getStates(states);
 
@@ -281,40 +261,7 @@ public:
 
     BranchAndBoundNode rootNode(objLB, lb, ub, states);
 
-    /*
-    // Print out upper bounds to see if they make sense at all...
-    for (int i = 0; i < dims.numFirstStageVars(); i++) {
-      if (0 == mype) cout << "First stage UB(" << i << ") = "
-			  << ub.getFirstStageVec()[i] << endl;
-    }
-    for (int scen = 0; scen < dims.numScenarios(); scen++) {
-      if(ctx.assignedScenario(scen)) {
-	for (int i = 0; i < dims.numSecondStageVars(scen); i++) {
-	cout << "Processor " << mype << ": Second stage scenario("
-	     << scen << "), UB(" << i << ") = "
-	     << ub.getSecondStageVec(scen)[i] << endl;
-	}
-      }
-    }
-    */
-
-    /*
-    if (0 == mype) cout << "Copying root node as test!\n";
-    BranchAndBoundNode newNode = rootNode;
-    if (0 == mype) cout << "Root node copied via copy-assignment!\n";
-    if (0 == mype) cout << "Destroying copied root node!\n";
-    newNode.BranchAndBoundNode::~BranchAndBoundNode();
-    if (0 == mype) cout << "Destroyed copied root node!\n";
-    */
-
-    if (0 == mype) cout << "Instantiate vector for testing!\n";
-    vector<denseBAVector> willSTLclassWork;
-    if (0 == mype) cout << "Push denseBAVector onto vector!\n";
-    willSTLclassWork.push_back(rootNode.ub);
-    if (0 == mype) cout << "Pop denseBAVector from vector!\n";
-    willSTLclassWork.pop_back();
-
-    if (0 == mype) cout << "Pushing root node onto B&B tree!\n";
+    //if (0 == mype) cout << "Pushing root node onto B&B tree!\n";
     heap.push(rootNode);
 
 
