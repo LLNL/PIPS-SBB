@@ -327,15 +327,21 @@ public:
 
     int is1stStageIntFeas(isFirstStageIntFeas(primalSoln));
 
-    int isMyScenIntFeas(0);
+    // Check to see if all 2nd stage scenarios on current MPI rank are
+    // integer feasible. At first scenario that is integer infeasible,
+    // we know that the primal solution is not integer feasible.
+    int isMyRankIntFeas(1);
     for (int scen = 0; scen < input.nScenarios(); scen++) {
       if(ctx.assignedScenario(scen)) {
-	isMyScenIntFeas = isSecondStageIntFeas(primalSoln, scen);
+	if(!isSecondStageIntFeas(primalSoln, scen)) {
+	  isMyRankIntFeas = 0;
+	  break;
+	}
       }
     }
 
     int is2ndStageIntFeas(0);
-    int errorFlag = MPI_Allreduce(&isMyScenIntFeas,
+    int errorFlag = MPI_Allreduce(&isMyRankIntFeas,
 				  &is2ndStageIntFeas,
 				  1,
 				  MPI_INT,
