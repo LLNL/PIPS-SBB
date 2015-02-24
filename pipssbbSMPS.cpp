@@ -648,15 +648,16 @@ public:
       // - Check to see if lower bound can be updated
       // - Branch
 
-      /* Lower bound update */
+      /* Lower bound update */ // This part is still incorrect!
       // If the LP solver returns an optimal solution AND that solution is
       // greater than the current best lower bound, update the best lower bound
       // on the objective function value.
       if (isLPoptimal) {
-	if (lpObj >= objLB) {
+	/*if (lpObj >= objLB) {
+	  if (0 == mype) cout << "Current best lower bound is " << lpObj << endl;
 	  if (0 == mype) cout << "Updating best lower bound to " << lpObj << endl;
-	  lpObj = objLB;
-	}
+	  objLB = lpObj;
+	  }*/
       }
 
       /* Optimality gap termination criteria: if gap between best
