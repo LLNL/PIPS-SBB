@@ -141,6 +141,13 @@ bool operator< (const BranchAndBoundNode& left,
   return left.parentObj < right.parentObj;
 }
 
+bool operator> (const BranchAndBoundNode& left,
+		  const BranchAndBoundNode& right)
+{
+  return left.parentObj > right.parentObj;
+}
+
+
 // TODO: Check if PIPS-S always minimizes; otherwise, must change logic.
 
 class BranchAndBoundTree {
@@ -164,7 +171,8 @@ public:
 
   // max-heap data structure with nodes
   // TODO: Refactor to vector<BranchAndBound> & replace w/ make_heap, push_heap, pop_heap
-  std::priority_queue<BranchAndBoundNode> heap;
+  //std::priority_queue<BranchAndBoundNode, std::vector<BranchAndBoundNode>, std::less<BranchAndBoundNode> > heap; // max-heap
+  std::priority_queue<BranchAndBoundNode, std::vector<BranchAndBoundNode>, std::greater<BranchAndBoundNode> > heap; // min-heap
 
   // Solver status; can only be in the set {LoadedFromFile, Initialized,
   // PrimalFeasible, Optimal, ProvenUnbounded, ProvenInfeasible, Stopped}
