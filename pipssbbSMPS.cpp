@@ -231,51 +231,29 @@ public:
     // TODO: Replace with real presolve.
     // For now, "cheat" by solving root LP before populating root node.
     // A warm start of the root node means that the root node solve
-    // inside the B&B tree will not cost very much -- just the PIPS-S overhead.
+    // inside the B&B tree does not cost very much -- just the PIPS-S overhead.
+    // However, this step is necessary in order to instantiate lower & upper
+    // bounds.
 
     rootSolver.go();
 
-    // TODO: Debug segfault.
-    // Bug hypothesis so far: Since I have not yet called "go" on rootSolver
-    // and thus I have not yet solved the LP relaxation, the PIPSSInterface
-    // object has not yet allocated memory for lower and upper bounds,
-    // and also states. Thus, calling the getters for ANY of these members
-    // yields a segfault. This hypothesis has been tested empirically.
-
-    // Cannot use getStates, getLB, or getUB from rootSolver until at least one
-    // LP is solved. So leave "states" uninitialized and get LB and UB
-    // information from SMPS input file.
-
+    // Get lower & upper bounds on decision variables in LP.
     if (0 == mype) cout << "Getting bounds for root node from presolve!\n";
-
-    // This code block DOES work, but it's not really what I want to do deeper
-    // in the B&B tree...
-    //const denseBAVector &mylb = rootSolver.getLB();
-    //const denseBAVector &myub = rootSolver.getUB();
-
-    //denseBAVector lb(mylb), ub(myub);
     denseBAVector lb(rootSolver.getLB()), ub(rootSolver.getUB());
 
-    /*
-    // This code block doesn't really work, but I want to do something like it.
-    //if (0 == mype) cout << "Allocating bounds for root node!\n";
-    denseBAVector lb, ub;
-    lb.allocate(dimsSlacks, ctx, PrimalVector);
-    ub.allocate(dimsSlacks, ctx, PrimalVector);
-    //if (0 == mype) cout << "Bounds allocated!\n";
-    lb.copyFrom(rootSolver.getLB());
-    ub.copyFrom(rootSolver.getUB());
-    //if (0 == mype) cout << "Setting bounds for root node from presolve!\n";
-    */
-
-    // Allocate primal solution for upper bound (remove this code once it
-    // works; move to B&B tree)
+    // Allocate current best primal solution; normally this primal solution
+    // is for the upper bound, but here, we have only the solution to an
+    // LP relaxation, which may not be primal feasible. We don't check
+    // primal/integer feasibility here.
     //if (0 == mype) cout << "Allocating primal solution!" << endl;
     ubPrimalSolution.allocate(dimsSlacks, ctx, PrimalVector);
     //if (0 == mype) cout << "Getting primal solution!" << endl;
     ubPrimalSolution.copyFrom(rootSolver.getPrimalSolution());
     //if (0 == mype) cout << "MIP Primal solution updated!" << endl;
 
+    // Update state of primal variables + slacks; slacks must be included
+    // because these are used in a reformulation of the problem to standard
+    // form: Ax + s = b, s >= 0.
     BAFlagVector<variableState> states(dimsSlacks, ctx, PrimalVector);
     rootSolver.getStates(states);
 
