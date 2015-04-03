@@ -621,21 +621,51 @@ public:
 
       // TODO: Combine the integrality and branching steps later
 
-      /* Fathom by value dominance */
-      // LP objective function value is lower bound on the objective
-      // function value of the LP derived from any node in the subtree
-      // of the B&B tree rooted at the current node, so no feasible
-      // solution in that subtree can have a lesser objective function
-      // value than the current upper bound on the optimal value of
-      // the MILP objective function.
-      if (0 == mype) cout << "Getting LP objective...\n";
-      double lpObj = rootSolver.getObjective();
-      // TODO: Make floating point comparisons safer.
-      if (0 == mype) cout << "Checking for value dominance...\n";
-      if ((lpObj - compTol) >= objUB) {
-	if (0 == mype) cout << "Fathoming node "
-			    << nodeNumber << " by value dominance!\n";
-	continue;
+      /* If LP solution is optimal, can fathom by value dominance. */
+
+      if (isLPoptimal) {
+      // If LP solver returns optimal, then the objective is bounded below.
+      // TODO: Change solver status to "Bounded".
+	//	setStatusToBounded();
+
+	/* Lower bound update */ // This part is still incorrect!
+	// If the LP solver returns an optimal solution AND that solution is
+	// greater than the current best lower bound, update the best lower bound
+	// on the objective function value.
+
+	// Since the branch-and-bound tree is stored as a min-heap, the current
+	// node being explored always has the minimal objective function value.
+	// If the branch-and-bound tree is ever re-heapified so that it is NOT
+	// a min-heap, but has the heap property for some other ordering, then
+	// this update cannot occur without taking the min objective function
+	// value over all values of the parent objective function for nodes
+	// still in the B&B tree (which is expensive if it is not the key used
+	// to heapify the min-heap).
+	//objLB = currentNode.parentObj;
+	//if ((lpObj - compTol) >= objLB) {
+	//  if (0 == mype) cout << "Current best lower bound is " << objLB << endl;
+	//  if (0 == mype) cout << "Updating best lower bound to " << lpObj << endl;
+	//  objLB = lpObj;
+	//}
+
+	/* Fathom by value dominance */
+	// Optimal LP objective function value is lower bound on the objective
+	// function value of the LP derived from any node in the subtree
+	// of the B&B tree rooted at the current node, so no feasible
+	// solution in that subtree can have a lesser objective function
+	// value than the current upper bound on the optimal value of
+	// the MILP objective function.
+
+	// Get LP objective function value.
+	if (0 == mype) cout << "Getting LP objective...\n";
+	double lpObj = rootSolver.getObjective();
+
+	if (0 == mype) cout << "Checking for value dominance...\n";
+	if ((lpObj - compTol) >= objUB) {
+	  if (0 == mype) cout << "Fathoming node "
+			      << nodeNumber << " by value dominance!\n";
+	  continue;
+	}
       }
 
       /* Get primal solution */
