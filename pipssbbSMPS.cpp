@@ -8,6 +8,7 @@
 #include <queue> // priority queue
 #include <cassert> // C-style assertions
 #include <cmath> // for floor, ceil, abs functions
+#include <algorithm> // for min
 
 using boost::scoped_ptr; // replace with unique_ptr for C++11
 using namespace std;
@@ -25,6 +26,10 @@ using namespace std;
 // Returns true if "x" is integer feasible up to tolerance "tol"
 bool isIntFeas(double x, double tol) {
     return ( (abs(floor(x) - x) <= tol) || (abs(ceil(x) - x) <= tol) );
+}
+
+double fracPart(double x) {
+  return min(x - floor(x), ceil(x) - x);
 }
 
 // Outputs solver status:
@@ -311,6 +316,29 @@ public:
     return -1;
   }
 
+  int getFirstStageMaxFracPartCol(const denseBAVector& primalSoln){
+    int col;
+
+    double maxFracPart = 0;
+    int maxFracPartCol = -1;
+
+    // Return index of integer variable with largest fractional part
+    for (col = 0; col < input.nFirstStageVars(); col++)
+      {
+	bool isColInteger = input.isFirstStageColInteger(col);
+	double colFracPart = fracPart(primalSoln.getFirstStageVec()[col]);
+
+	if(isColInteger && (colFracPart > maxFracPart) ) {
+	  maxFracPartCol = col;
+	  maxFracPart = colFracPart;
+	}
+      }
+
+    if (maxFracPart <= intTol) return -1;
+    return maxFracPartCol;
+
+    }
+
   // NOTE: MPI standard requires passing ints, not bools
   int isFirstStageIntFeas(const denseBAVector& primalSoln) {
     return (getFirstStageMinIntInfeasCol(primalSoln) == -1);
@@ -383,8 +411,14 @@ public:
     denseBAVector lbFloor(rootSolver.getLB()), lbCeil(rootSolver.getLB());
     denseBAVector ubFloor(rootSolver.getUB()), ubCeil(rootSolver.getUB());
 
+    /* Branching Rule */
     // For now, get minimal index of an integer infeasible variable
-    int branchCol = getFirstStageMinIntInfeasCol(primalSoln);
+    //int branchCol = getFirstStageMinIntInfeasCol(primalSoln);
+
+    // Get index of maximum fractional part.
+    int branchCol = getFirstStageMaxFracPartCol(primalSoln);
+    assert(branchCol > -1); // Should always be true if not integer feasible
+
     if (0 == mype) cout << "Branching on first stage variable "
 			<< branchCol << "!\n";
     ubFloor.getFirstStageVec()[branchCol] =
