@@ -670,8 +670,6 @@ public:
 
       /* Get primal solution */
       if (0 == mype) cout << "Getting primal solution...\n";
-      //      denseBAVector primalSoln;
-      //primalSoln.allocate(dimsSlacks, ctx, PrimalVector);
       denseBAVector primalSoln(rootSolver.getPrimalSolution());
 
       /* If primal solution is integral: */
