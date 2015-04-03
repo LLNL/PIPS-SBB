@@ -548,8 +548,7 @@ public:
 	}
 
 	/* If solver status is not primal feasible, then the MILP must be
-	   infeasible or unbounded. At the moment, there are no checks for
-	   boundedness or unboundedness, so return infeasible. */
+	   infeasible. */
 	// TODO: Add test for unboundedness.
 	if (LoadedFromFile == status) {
 	  setStatusToProvenInfeasible();
@@ -607,9 +606,18 @@ public:
 	continue;
       }
 
-      // Otherwise, LP is optimal or unbounded.
-      // If LP solver returns optimal, then the objective is bounded below.
-      // TODO: Change solver status to "Bounded".
+      // Otherwise, LP is feasible. LP may be optimal or unbounded.
+      // If LP is unbounded, so is the MILP.
+      if (isLPunbounded) {
+	if (0 == mype) cout << "LP relaxation of node " << nodeNumber
+			    << " is unbounded!\n"
+			    << "Please add additional constraints to "
+			    << "bound the MILP.\n";
+	return;
+      }
+
+      // At this point, LP must be optimal.
+      assert (isLPoptimal); // Error if not optimal.
 
       // TODO: Combine the integrality and branching steps later
 
