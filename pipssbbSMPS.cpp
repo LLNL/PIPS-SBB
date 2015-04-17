@@ -232,8 +232,16 @@ public:
     // For now, "cheat" by solving root LP before populating root node.
     // A warm start of the root node means that the root node solve
     // inside the B&B tree does not cost very much -- just the PIPS-S overhead.
-    // However, this step is necessary in order to instantiate lower & upper
-    // bounds.
+    // However, this step is necessary in order to properly allocate primal
+    // variables (due to slacks) and to determine which variables are basic.
+    // This step is also currently required to instantiate lower & upper
+    // bounds. In theory, the bounds could be obtained from the SMPS file.
+    // In practice, getting the bounds from the SMPS file is cumbersome,
+    // because first stage bounds and second stage bounds must be
+    // queried separately and are returned as std::vector<double>s.
+    // In addition, distributed data structures dictate some care in
+    // how the assignments are performed: there must be checks to
+    // ensure that the data to be assigned is owned by the "right" process.
 
     rootSolver.go();
 
