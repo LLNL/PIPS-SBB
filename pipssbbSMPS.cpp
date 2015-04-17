@@ -763,6 +763,9 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
+	// Set PIPS logging level.
+	PIPSLogging::init_logging(1);
+
         // Get SMPS file name and open SMPS file
 	string smpsrootname(argv[1]);
 
