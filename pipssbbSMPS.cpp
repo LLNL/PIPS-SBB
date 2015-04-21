@@ -243,11 +243,15 @@ public:
     // how the assignments are performed: there must be checks to
     // ensure that the data to be assigned is owned by the "right" process.
 
-    rootSolver.go();
-
     // Get lower & upper bounds on decision variables in LP.
     if (0 == mype) cout << "Getting bounds for root node from presolve!\n";
-    denseBAVector lb(rootSolver.getLB()), ub(rootSolver.getUB());
+
+    BAData problemData = rootSolver.getBAData();
+    denseBAVector lb, ub;
+    lb.allocate(dimsSlacks, ctx, PrimalVector); lb.copyFrom(problemData.l);
+    ub.allocate(dimsSlacks, ctx, PrimalVector); ub.copyFrom(problemData.u);
+
+    rootSolver.go();
 
     // Allocate current best primal solution; normally this primal solution
     // is for the upper bound, but here, we have only the solution to an
