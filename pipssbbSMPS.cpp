@@ -26,6 +26,9 @@ using namespace std;
 //enum BranchAndBoundStatus { Unbounded, Bounded, Feasible, Optimal, Infeasible};
 
 // TODO: Move utility functions fracPart & isIntFeas to central location
+
+enum nodeSelectionRule { BestBound, DepthFirst };
+
 // Returns "fractional part" of x
 // Should always be nonnegative. 
 double fracPart(double x) {
@@ -194,6 +197,12 @@ public:
   std::priority_queue<BranchAndBoundNode, std::vector<BranchAndBoundNode>, std::greater<BranchAndBoundNode> > heap; // min-heap
 
 
+  // Node selection rule, determines which node is chosen next. By default, it is bestbound, 
+  // by using the min-heap. To handle other rules, we will need to refactor priority_queue to vector,
+  // with make_heap, etc. (Except for depth-first, which doesn't need to make_heap)
+  nodeSelectionRule nodesel;
+  
+
 public:
   // Upon constructing the B&B tree:
   // - instantiate MPI communicator context for block angular objects
@@ -223,7 +232,8 @@ public:
 					     optGapTol(1e-6),
 					     lpPrimalTol(1e-6),
 					     lpDualTol(1e-6),
-					     compTol(lpPrimalTol)
+					     compTol(lpPrimalTol),
+					     nodesel(BestBound)
   {
 
     //if (0 == mype) cout << "Calling B&B tree constructor!\n";
@@ -690,6 +700,14 @@ public:
 	if ((lpObj - compTol) >= objUB) {
 	  if (0 == mype) cout << "Fathoming node "
 			      << nodeNumber << " by value dominance!\n";
+	  
+	  if (nodesel == BestBound) {
+	    if (0 == mype) cout << "Can stop if best bound node selection rule\n";
+	    setStatusToOptimal();
+	    if (0 == mype) cout << "All nodes can be fathomed! Terminating!\n";
+	    break;
+	  }
+	    
 	  continue;
 	}
       }
