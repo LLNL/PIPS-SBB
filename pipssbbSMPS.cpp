@@ -247,10 +247,21 @@ public:
     if (0 == mype) cout << "Getting bounds for root node from presolve!\n";
 
     BAData problemData = rootSolver.getBAData();
+
     denseBAVector lb, ub;
     lb.allocate(dimsSlacks, ctx, PrimalVector); lb.copyFrom(problemData.l);
     ub.allocate(dimsSlacks, ctx, PrimalVector); ub.copyFrom(problemData.u);
 
+    // Presolve first stage until nothing changes.
+    unsigned int numPresolves = 0;
+    while(true) {
+      numPresolves++;
+      if(!presolveFirstStage(lb, ub, problemData)) break;
+    }
+
+    if (0 == mype) cout << "There were " << numPresolves << " presolves.\n";
+
+    // Solve root node.
     rootSolver.go();
 
     // Allocate current best primal solution; normally this primal solution
@@ -284,6 +295,245 @@ public:
 
   // Default destructor
   ~BranchAndBoundTree() {}
+
+  // First stage presolve
+  bool presolveFirstStage(denseBAVector &lb, denseBAVector &ub, BAData& problemData) {
+    bool isMIPchanged = false;
+
+    // Begin presolve.
+    // For now, focus only on:
+    // - 1st stage variables
+    // - upper bound inequalities
+    // dims.numFirstStageCons() == dimsSlacks.numFirstStageCons()
+    for (int row = 0; row < dims.numFirstStageCons(); row++) {
+      // Nomenclature taken from: "Preprocessing and Probing
+      // Techniques for Mixed Integer Programming Problems",
+      // M. W. P. Savelsbergh, ORSA Journal on Computing,
+      // Vol. 6, No. 4, Fall 1994, 445-453.
+
+      // Compute L_{max}^{i} and L_{min}^{i} for row i using Section 1.3
+      // of Savelsbergh.
+      double Lmax = 0, Lmin = 0;
+      //      assert(!(problemData.Arow->isColOrdered()));
+      CoinShallowPackedVector currentRow = problemData.Arow->getVector(row);
+      //CoinShallowPackedVector currentRow = problemData.Acol->getVector(row);
+      const double *ptrToElts = currentRow.getElements();
+      const int *ptrToIdx = currentRow.getIndices();
+      int currentRowSize = currentRow.getNumElements();
+      for (int j = 0; j < currentRowSize; j++) {
+	int col = ptrToIdx[j]; // column index from sparse vector
+	double coeff = ptrToElts[j];
+	if(coeff >= 0) {
+	  Lmax += ub.getFirstStageVec()[col] * coeff;
+	  Lmin += lb.getFirstStageVec()[col] * coeff;
+	}
+	else { // coeff < 0
+	  //
+	  //   Note: In Savelsbergh, Section 1.3, coeff is
+	  //   assumed positive by convention, and then a negative sign
+	  //   is applied to terms with coeff based on the index
+	  //   j being in a positive index set or negative index
+	  //   set. Since coeff is negative in this branch, we
+	  //   flip the sign of those terms, so they are now all
+	  //   additions instead of subtractions.
+          //
+	  Lmax += lb.getFirstStageVec()[col] * coeff;
+	  Lmin += ub.getFirstStageVec()[col] * coeff;
+	}
+      }
+
+      // Diagnostic code.
+      /*if (0 == row) {
+	if (0 == mype) {
+	  cout << "For row 0, Lmin = " << Lmin << " and Lmax = " << Lmax << endl;
+	}
+	}*/
+
+      // Constraints are stored in the form l <= Ax <= u. Let nvars =
+      // # of variables (including slacks!). For first stage
+      // constraint row j, the lower bound on the inequality is stored
+      // in lb.getFirstStageVec()[nvars+j], where j goes from 0 to (#
+      // of constraints minus 1). The corresponding upper bound on the
+      // inequality for first stage constraint row j is stored in
+      // ub.getFirstStageVec()[nvars+j].
+      
+      // Inferred from BAData::BAData(stochasticInput &input, BAContext &ctx)
+      // dimsSlacks.numFirstStageVars() ==
+      //    (dims.numFirstStageCons() + dims.numFirstStageVars())
+      double rowUB =
+	ub.getFirstStageVec()[dims.numFirstStageVars() + row];
+      double rowLB =
+	lb.getFirstStageVec()[dims.numFirstStageVars() + row];
+
+      // Diagnostic code.
+      /*if (0 == row) {
+	if (0 == mype) {
+	  cout << "For row 0, rowUB = " << rowUB << " and rowLB = " << rowLB << endl;
+	}
+	}*/
+
+      // Inferred from Koberstein dissertation, equation (2.3) and
+      // "internal model representation" (IMR)
+      //double rowUB =
+      //	-lb.getFirstStageVec()[dimsSlacks.numFirstStageVars() + row];
+      //double rowLB =
+      //	-ub.getFirstStageVec()[dimsSlacks.numFirstStageVars() + row];
+      
+
+      bool isRowInfeasible = (Lmin > rowUB) || (Lmax < rowLB);
+      if (isRowInfeasible) {
+	setStatusToProvenInfeasible();
+	isMIPchanged = true;
+	break;
+      }
+
+      bool isRowRedundant = (Lmax <= rowUB) && (Lmin >= rowLB);
+      if (isRowRedundant) {
+	// Do something about redundancy; i.e., mark this row for deletion.
+	// TODO: Uncomment the line below once row deletion implemented in
+	// the body of this if statement.
+	// isMIPchanged = true;
+	break;
+      }
+
+      // Bound improvement/fixing binary variables/improving binary coeffs
+      // Ternary statements are used to avoid deeply nesting if statements
+      for (int j = 0; j < currentRowSize; j++) {
+	int col = ptrToIdx[j];
+	bool isBinary = input.isFirstStageColBinary(col);
+	double coeff = ptrToElts[j];
+	bool isCoeffPositive = (coeff > 0); // Note: only nonzero coeffs stored
+	bool isCoeffNegative = (coeff < 0);
+	double colUB = ub.getFirstStageVec()[col];
+	double colLB = lb.getFirstStageVec()[col];
+
+	// Bound improvement setup steps; note: for valid lower bound, signs
+	// of coefficient terms are flipped because Savelsbergh assumes all
+	// coefficients are positive in his paper.
+
+	if (isBinary) {
+	// Use abs value of coefficient because Savelsbergh assumes all
+	// coefficients positive.
+	  bool isBinaryFixableLmin = ((Lmin + abs(coeff)) > rowUB);
+	  bool isBinaryFixableLmax = ((Lmax - abs(coeff)) < rowLB);
+	  bool isBinaryFixable = isBinaryFixableLmin || isBinaryFixableLmax;  
+	  
+	  if(isBinaryFixable) isMIPchanged = true;
+
+	  if (isBinaryFixableLmin) {
+	    if (0 == mype) cout << "Fixing binary variable via Lmin!" << endl;
+	    if (isCoeffPositive) {
+	      if (0 == mype) cout << "Fix 1st stage bin var " << col << " to 0" << endl;
+	      ub.getFirstStageVec()[col] = 0.0;	      
+	    }
+	    if (isCoeffNegative) {
+	      if (0 == mype) cout << "Fix 1st stage bin var " << col << " to 1" << endl;
+	      lb.getFirstStageVec()[col] = 1.0;
+	    }
+	  }
+	  if (isBinaryFixableLmax) {
+	    if (0 == mype) cout << "Fixing binary variable via Lmax!" << endl;
+	    if (isCoeffPositive) {
+	      if (0 == mype) cout << "Fix 1st stage bin var " << col << " to 1" << endl;
+	      lb.getFirstStageVec()[col] = 1.0;
+	    }
+	    if (isCoeffNegative) {
+	      if (0 == mype) cout << "Fix 1st stage bin var " << col << " to 0" << endl;
+	      ub.getFirstStageVec()[col] = 0.0;
+	    }
+	  }
+	  
+	}
+	else {
+	  // Lmin-derived lower bounds -- in Savelsberg, Section 1.1.
+	  double LminUB = (rowUB - (Lmin - coeff*colLB))/coeff;
+	  double LminLB = (rowUB - (Lmin - coeff*colUB))/coeff;
+	  
+	  if (isCoeffPositive) {
+	    if (LminUB < colUB) {
+	      if (0 == mype) cout << "Tightening UB on 1st stage col " << col << " via Lmin!\n";
+	      ub.getFirstStageVec()[col] = LminUB;
+	      isMIPchanged = true;
+	    }
+	  }
+	  else {
+	    if (LminLB > colLB) {
+	      if (0 == mype) cout << "Tightening LB on 1st stage col " << col << " via Lmin!\n";
+	      lb.getFirstStageVec()[col] = LminLB;
+	      isMIPchanged = true;
+	    }
+	  }
+	  
+	  // Lmax-derived lower bounds -- by analogy to Savelsberg, Section 1.1
+	  double LmaxUB = (rowLB - (Lmax - coeff*lb.getFirstStageVec()[col]))/coeff;
+	  double LmaxLB = (rowLB - (Lmax - coeff*ub.getFirstStageVec()[col]))/coeff;
+	  if (isCoeffPositive) {
+	    if (LmaxUB < ub.getFirstStageVec()[col]) {
+	      if (0 == mype) cout << "Tightening UB on 1st stage col " << col << " via Lmax!\n";
+	      ub.getFirstStageVec()[col] = LmaxUB;
+	      isMIPchanged = true;
+	    }
+	  }
+	  else {
+	    if (LmaxLB > lb.getFirstStageVec()[col]) {
+	      if (0 == mype) cout << "Tightening LB on 1st stage col " << col << " via Lmax!\n";
+	      lb.getFirstStageVec()[col] = LmaxLB;
+	      isMIPchanged = true;
+	    }
+	  }
+	}
+  
+	/*
+	// Derived by analogy to Savelsbergh Sections 1.2, 1.3
+	// Note: This code cannot currently work as written, because
+	// PIPSInterface.d (e.g., rootSolver.d) is a protected member, and
+	// thus cannot be written to at the moment.
+	if(isBinary) {
+	  // Maximum and minimum possible values for inequality in this row
+	  // after discarding all other inequalities
+	  double rowMax = Lmax - abs(coeff);
+	  double rowMin = Lmin + abs(coeff);
+
+	  // Maximum coefficient increases/decreases by coefficient
+	  // improvement subsection of Savelsbergh, Section 1.2.
+	  // Note: derived additional relationships for double-sided
+	  // inequalities.
+	  double coeffLBchg = max(rowUB - rowMax, 0.0);
+	  double coeffUBchg = max(rowMin - rowLB, 0.0);
+	  double coeffChg = min(coeffLBchg, coeffUBchg);
+	  // bool isCoeffImprovable = (coeffChg > 0.0);
+	  
+	  // Note: In many cases, if the coefficients cannot be improved
+	  // (i.e., coeffChg == 0.0), the code below will do unnecessary
+	  // assignments. One later optimization could be to get rid of
+	  // these assignments, if they require a significant amount of
+	  // time.
+	  if (isCoeffPositive) {
+	    ub.getFirstStageVec()[dimsSlacks.numFirstStageVars() + row] += -coeffChg;
+	    double newCoeff = coeff - coeffChg;
+	    problemData.Arow->modifyCoefficient(row, col, newCoeff);
+	    // PIPS-S uses the idiom:
+	    // Acol->reverseOrderedCopyOf(*Arow);
+	    // This idiom seems wasteful here; a possibly better one could be:
+	    problemData.Acol->modifyCoefficient(row, col, newCoeff);
+	  }
+	  else {
+	    lb.getFirstStageVec()[dimsSlacks.numFirstStageVars() + row] += coeffChg;
+	    double newCoeff = coeff + coeffChg;
+	    problemData.Arow->modifyCoefficient(row, col, newCoeff);
+	    // PIPS-S uses the idiom:
+	    // Acol->reverseOrderedCopyOf(*Arow);
+	    // This idiom seems wasteful here; a possibly better one could be:
+	    problemData.Acol->modifyCoefficient(row, col, newCoeff);
+	  }
+	}
+	*/
+
+      }
+    }
+    
+    return isMIPchanged;
+  }
 
   // Auxiliary functions for branching
   int getFirstStageMinIntInfeasCol(const denseBAVector& primalSoln) {
