@@ -113,7 +113,7 @@ nodesel(BestBound)
     // is for the upper bound, but here, we have only the solution to an
     // LP relaxation, which may not be primal feasible. We don't check
     // primal/integer feasibility here.
-    //if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Allocating primal solution.";
+    //pwdif (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Allocating primal solution.";
     ubPrimalSolution.allocate(dimsSlacks, ctx, PrimalVector);
     //if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Getting primal solution";
     ubPrimalSolution.copyFrom(rootSolver.getPrimalSolution());
@@ -303,6 +303,13 @@ void BBSMPSTree::branchAndBound() {
 
 		if (nodesel == BestBound) {
 			objLB=currentNode_ptr->getParentObjective();
+			if ((objLB - compTol) >= objUB) {
+				if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Can stop if best bound node selection rule";
+				status.setStatusToOptimal();
+				if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "All nodes can be fathomed! Terminating.";
+				break;
+			}
+				
 		}
 
 		/* Set bounds of LP decision variables from BBSMPSNode */
@@ -419,15 +426,11 @@ void BBSMPSTree::branchAndBound() {
 				if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Fathoming node " << currentNode_ptr->getNodeNumber() << " by value dominance.";
 
 				delete currentNode_ptr;
-
-				if (nodesel == BestBound) {
-					if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Can stop if best bound node selection rule";
-					status.setStatusToOptimal();
-					if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "All nodes can be fathomed! Terminating.";
-					break;
-				}
 				continue;
 			}
+				
+			
+			
 		}
 
 		/* Get primal solution */
