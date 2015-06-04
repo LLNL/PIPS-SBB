@@ -261,6 +261,7 @@ bool BBSMPSTree::isLPIntFeas(const denseBAVector& primalSoln) {
 
 
 void BBSMPSTree::branchAndBound() {
+	double t = MPI_Wtime();
 	int mype=BBSMPSSolver::instance()->getMype();
 	PIPSSInterface &rootSolver= BBSMPSSolver::instance()->getPIPSInterface();
 
@@ -300,6 +301,9 @@ void BBSMPSTree::branchAndBound() {
 		//if (0 == mype) cout << "Popping node " << nodeNumber << " off tree!\n";
 		heap.pop();
 
+		if (nodesel == BestBound) {
+			objLB=currentNode_ptr->getParentObjective();
+		}
 
 		/* Set bounds of LP decision variables from BBSMPSNode */
 		//if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Setting bounds for LP subproblem.";
@@ -432,10 +436,15 @@ void BBSMPSTree::branchAndBound() {
 
 
 		vector<denseBAVector> heuristicSolutions;
-		heuristicsManager.runHeuristics(currentNode_ptr,primalSoln,heuristicSolutions);
+		vector<double> solutionObjValues;
+		heuristicsManager.runHeuristics(currentNode_ptr,primalSoln,heuristicSolutions,solutionObjValues);
 		if (heuristicSolutions.size()>0) {
 			bool isFeas=isLPIntFeas(heuristicSolutions[0]);
-			BBSMPS_ALG_LOG_SEV(info)<<"Heuristic found solution.";
+			if (0 == mype) BBSMPS_ALG_LOG_SEV(info)<<"Heuristic found solution.";
+			for (int i=0; i< heuristicSolutions.size(); i++){
+				if (solutionObjValues[i]<objUB)objUB=solutionObjValues[i];
+			}
+
 		}
 			/* If primal solution is integral: */
 			//  - Update solver status to PrimalFeasible
@@ -517,5 +526,7 @@ void BBSMPSTree::branchAndBound() {
 		heuristicsManager.printStatistics();
 		branchingRuleManager.printStatistics();
 	}
+	t = MPI_Wtime() - t;
+	BBSMPS_APP_LOG_SEV(summary)<<boost::format("Branch and Bound took %f seconds") % t;
 
 }

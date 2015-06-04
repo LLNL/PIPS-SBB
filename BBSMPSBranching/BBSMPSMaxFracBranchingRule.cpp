@@ -52,7 +52,7 @@ int BBSMPSMaxFracBranchingRule::isFirstStageIntFeas( const denseBAVector& primal
 
 void BBSMPSMaxFracBranchingRule::branchOnFirstStage(BBSMPSNode * node, std::vector<BBSMPSNode*> &childNodes, const denseBAVector& primalSoln,  SMPSInput& input) {
 
-
+	int mype=BBSMPSSolver::instance()->getMype();
     /* Branching Rule */
     // For now, get minimal index of an integer infeasible variable
     //int branchCol = getFirstStageMinIntInfeasCol(primalSoln);
@@ -61,7 +61,7 @@ void BBSMPSMaxFracBranchingRule::branchOnFirstStage(BBSMPSNode * node, std::vect
 	int branchCol = getFirstStageMaxFracPartCol(primalSoln,input);
     assert(branchCol > -1); // Should always be true if not integer feasible
 
-    BBSMPS_ALG_LOG_SEV(info) << "Branching on first stage variable "<< branchCol <<".";
+    if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Branching on first stage variable "<< branchCol <<".";
 
 	//Create both branching infos
     std::vector<BBSMPSBranchingInfo> bInfosLeftKid;
@@ -132,7 +132,7 @@ void BBSMPSMaxFracBranchingRule::branchOnSecondStage(BBSMPSNode * node, std::vec
 		ctx.comm());
 	if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Branching on second stage scenario "
 		<< branchScen << ".";
-	BBSMPS_ALG_LOG_SEV(info) << "Processor " << mype << " will branch on second stage scenario "
+	if (ctx.assignedScenario(branchScen))BBSMPS_ALG_LOG_SEV(info) << "Processor " << mype << " will branch on second stage scenario "
 	<< branchScen << ".";
 
     // Then, for that scenario number, get the minimal index of

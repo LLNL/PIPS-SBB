@@ -3,44 +3,7 @@
 using namespace std;
 
 
-// Outputs solver status:
-void outputLPStatus2(solverState lpStatus) {
-	cout << "PIPS-S has returned ";
-	string status;
-	switch(lpStatus) {
-		case Uninitialized:
-		status = "Uninitialized";
-		break;
-		case LoadedFromFile:
-		status = "LoadedFromFile";
-		break;
-		case Initialized:
-		status = "Initialized";
-		break;
-		case PrimalFeasible:
-		status = "PrimalFeasible";
-		break;
-		case DualFeasible:
-		status = "DualFeasible";
-		break;
-		case Optimal:
-		status = "Optimal";
-		break;
-		case ProvenUnbounded:
-		status = "ProvenUnbounded";
-		break;
-		case ProvenInfeasible:
-		status = "ProvenInfeasible";
-		break;
-		case Stopped:
-		status = "Stopped";
-		break;
-	}
-	cout << status << endl;
-}
-
-
-bool BBSMPSHeuristicRounding::runHeuristic(BBSMPSNode* node, denseBAVector &LPRelaxationSolution, denseBAVector &solution){
+bool BBSMPSHeuristicRounding::runHeuristic(BBSMPSNode* node, denseBAVector &LPRelaxationSolution, denseBAVector &solution, double &solObjValue){
 	
 	int mype=BBSMPSSolver::instance()->getMype();
 	
@@ -55,9 +18,10 @@ bool BBSMPSHeuristicRounding::runHeuristic(BBSMPSNode* node, denseBAVector &LPRe
 	//Apply Simple rounding to 1st stage vars 
 	for (int col = 0; col < input.nFirstStageVars(); col++)
 	{	
-		lb.getFirstStageVec()[col]=roundToNearestInteger(LPRelaxationSolution.getFirstStageVec()[col]);
-		ub.getFirstStageVec()[col]=roundToNearestInteger(LPRelaxationSolution.getFirstStageVec()[col]);
-
+		if(input.isFirstStageColInteger(col)){
+			lb.getFirstStageVec()[col]=roundToNearestInteger(LPRelaxationSolution.getFirstStageVec()[col]);
+			ub.getFirstStageVec()[col]=roundToNearestInteger(LPRelaxationSolution.getFirstStageVec()[col]);
+		}
 	}
 
 	rootSolver.setLB(lb);
@@ -75,7 +39,6 @@ bool BBSMPSHeuristicRounding::runHeuristic(BBSMPSNode* node, denseBAVector &LPRe
 	/* Check solver status for infeasibility/optimality */
 	solverState lpStatus = rootSolver.getStatus();
 	bool otherThanOptimal = (Optimal != lpStatus); 
-	outputLPStatus2(lpStatus);
 	if (otherThanOptimal) return false;
 
 	denseBAVector primalSoln(rootSolver.getPrimalSolution());
@@ -86,9 +49,10 @@ bool BBSMPSHeuristicRounding::runHeuristic(BBSMPSNode* node, denseBAVector &LPRe
 		if(ctx.assignedScenario(scen)) {
 			for (int col = 0; col < input.nSecondStageVars(scen); col++)
 			{
-				lb.getSecondStageVec(scen)[col]=roundToNearestInteger(primalSoln.getSecondStageVec(scen)[col]);
-				ub.getSecondStageVec(scen)[col]=roundToNearestInteger(primalSoln.getSecondStageVec(scen)[col]);
-
+				if(input.isSecondStageColInteger(scen,col)){
+					lb.getSecondStageVec(scen)[col]=roundToNearestInteger(primalSoln.getSecondStageVec(scen)[col]);
+					ub.getSecondStageVec(scen)[col]=roundToNearestInteger(primalSoln.getSecondStageVec(scen)[col]);
+				}
 			}
 		}
 	}
@@ -101,11 +65,11 @@ bool BBSMPSHeuristicRounding::runHeuristic(BBSMPSNode* node, denseBAVector &LPRe
 	rootSolver.commitStates();
 	rootSolver.go();
 	lpStatus = rootSolver.getStatus();
-	outputLPStatus2(lpStatus);
 	otherThanOptimal = (Optimal != lpStatus); 
 	
 	if(!otherThanOptimal){
 		solution=rootSolver.getPrimalSolution();
+		solObjValue=rootSolver.getObjective();
 	}
 	//return if success
 	timesCalled++;
@@ -123,22 +87,17 @@ bool BBSMPSHeuristicRounding::shouldItRun(BBSMPSNode* node, denseBAVector &LPRel
 	BAContext &ctx= BBSMPSSolver::instance()->getBAContext();
 	
 	int numberOfFractionalVariables=0;
+	int nIntVars=0;
 	for (int col = 0; col < input.nFirstStageVars(); col++)
 	{	
-		numberOfFractionalVariables+=(!isIntFeas(LPRelaxationSolution.getFirstStageVec()[col],intTol));
+		if(input.isFirstStageColInteger(col)){
+			numberOfFractionalVariables+=(!isIntFeas(LPRelaxationSolution.getFirstStageVec()[col],intTol));
+			nIntVars++;
+		}
 		
 	}
-	for (int scen = 0; scen < input.nScenarios(); scen++)
-	{
-		if(ctx.assignedScenario(scen)) {
-			for (int col = 0; col < input.nSecondStageVars(scen); col++)
-			{
-				numberOfFractionalVariables+=(!isIntFeas(roundToNearestInteger(LPRelaxationSolution	.getSecondStageVec(scen)[col]),intTol));
-				
-			}
-		}
-	}
-
-	return numberOfFractionalVariables<2;
+	
+	if (nIntVars==0)return false;
+	return ((numberOfFractionalVariables*100/nIntVars)<50);
 
 }

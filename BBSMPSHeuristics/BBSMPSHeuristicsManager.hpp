@@ -28,7 +28,7 @@ public:
 
 	void addHeuristic(BBSMPSHeuristic *heuristic);
 
-	bool runHeuristics(BBSMPSNode* n,denseBAVector &LPRelaxationSolution, std::vector<denseBAVector> &solutions);
+	bool runHeuristics(BBSMPSNode* n,denseBAVector &LPRelaxationSolution, std::vector<denseBAVector> &solutions, std::vector<double> &solutionObjVals);
 
 	void printStatistics();
 

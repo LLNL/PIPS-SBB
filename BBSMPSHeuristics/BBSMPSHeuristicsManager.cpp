@@ -10,17 +10,18 @@ void BBSMPSHeuristicsManager::addHeuristic(BBSMPSHeuristic *heuristic){
 	heuristicsList.insert(heuristic);
 }
 
-bool BBSMPSHeuristicsManager::runHeuristics(BBSMPSNode* node,denseBAVector &LPRelaxationSolution, vector<denseBAVector> &solutions){
+bool BBSMPSHeuristicsManager::runHeuristics(BBSMPSNode* node,denseBAVector &LPRelaxationSolution, vector<denseBAVector> &solutions, std::vector<double> &solutionObjVals){
 	bool success=false;
 	std::multiset<BBSMPSHeuristic*>::iterator it;
 	for (it=heuristicsList.begin(); it!=heuristicsList.end(); ++it){
 		BBSMPSHeuristic *heur=(*it);
-		cout<<"checking iteration "<<endl;
 		if (heur->checkPeriodicity(node) && heur->shouldItRun(node,LPRelaxationSolution)){
-			denseBAVector aux;
-			bool heurSuccess=heur->runHeuristic(node, LPRelaxationSolution,  aux);
+			denseBAVector auxSol;
+			double auxObjVal;
+			bool heurSuccess=heur->runHeuristic(node, LPRelaxationSolution,  auxSol, auxObjVal);
 			if (heurSuccess){
-				solutions.push_back(aux);
+				solutions.push_back(auxSol);
+				solutionObjVals.push_back(auxObjVal);
 			}
 			success= success || heurSuccess;
 			
