@@ -41,7 +41,7 @@
 #include "BBSMPSSolver.hpp"
 #include "BBSMPSSolverState.hpp"
 #include "BBSMPSLogging.hpp"
-
+#include "BBSMPSSolution.hpp"
 // Outputs solver status:
 void outputLPStatus(solverState lpStatus);
 
@@ -110,6 +110,7 @@ private:
   
   double objUB; // best upper bound on objective function value
   denseBAVector ubPrimalSolution; // primal solution for best UB on obj
+  std::vector<BBSMPSSolution> solutionPool;
   double objLB; // best lower bound on objective function value
 
   //double intTol; // tolerance on integrality checks

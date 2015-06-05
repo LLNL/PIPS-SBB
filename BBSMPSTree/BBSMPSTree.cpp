@@ -437,15 +437,18 @@ void BBSMPSTree::branchAndBound() {
 		//if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Getting primal solution...";
 		denseBAVector primalSoln(rootSolver.getPrimalSolution());
 
-
-		vector<denseBAVector> heuristicSolutions;
-		vector<double> solutionObjValues;
-		heuristicsManager.runHeuristics(currentNode_ptr,primalSoln,heuristicSolutions,solutionObjValues);
+		//We run heuristics and make sure found solutions are integral before adding them to the pool.
+		vector<BBSMPSSolution> heuristicSolutions;
+		heuristicsManager.runHeuristics(currentNode_ptr,primalSoln,heuristicSolutions);
 		if (heuristicSolutions.size()>0) {
-			bool isFeas=isLPIntFeas(heuristicSolutions[0]);
 			if (0 == mype) BBSMPS_ALG_LOG_SEV(info)<<"Heuristic found solution.";
 			for (int i=0; i< heuristicSolutions.size(); i++){
-				if (solutionObjValues[i]<objUB)objUB=solutionObjValues[i];
+				denseBAVector solVector;
+				heuristicSolutions[i].getSolutionVector(solVector);
+				if (heuristicSolutions[i].getObjValue()<objUB && isLPIntFeas(solVector)){
+					objUB=heuristicSolutions[i].getObjValue();
+					solutionPool.push_back(heuristicSolutions[i]);
+				}
 			}
 
 		}
@@ -470,6 +473,7 @@ void BBSMPSTree::branchAndBound() {
 				if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Updating best upper bound to " << newUB ;
 				objUB = rootSolver.getObjective();
 				ubPrimalSolution.copyFrom(primalSoln);
+				solutionPool.push_back(BBSMPSSolution(ubPrimalSolution,newUB));
 			}
 			delete currentNode_ptr;
 			continue;

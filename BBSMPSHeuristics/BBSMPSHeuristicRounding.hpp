@@ -18,7 +18,7 @@ class BBSMPSHeuristicRounding: public BBSMPSHeuristic {
 	
 public:
 	BBSMPSHeuristicRounding(int offset, int depth,  const char *_name): BBSMPSHeuristic(offset,depth,_name){};
-	bool runHeuristic(BBSMPSNode* node, denseBAVector &LPRelaxationSolution, denseBAVector &solution, double &solObjValue);
+	bool runHeuristic(BBSMPSNode* node, denseBAVector &LPRelaxationSolution, BBSMPSSolution &solution);
 	bool shouldItRun(BBSMPSNode* node, denseBAVector &LPRelaxationSolution);
 };
 

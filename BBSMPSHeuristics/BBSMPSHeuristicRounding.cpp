@@ -3,7 +3,7 @@
 using namespace std;
 
 
-bool BBSMPSHeuristicRounding::runHeuristic(BBSMPSNode* node, denseBAVector &LPRelaxationSolution, denseBAVector &solution, double &solObjValue){
+bool BBSMPSHeuristicRounding::runHeuristic(BBSMPSNode* node, denseBAVector &LPRelaxationSolution, BBSMPSSolution &solution){
 	
 	int mype=BBSMPSSolver::instance()->getMype();
 	
@@ -68,8 +68,9 @@ bool BBSMPSHeuristicRounding::runHeuristic(BBSMPSNode* node, denseBAVector &LPRe
 	otherThanOptimal = (Optimal != lpStatus); 
 	
 	if(!otherThanOptimal){
-		solution=rootSolver.getPrimalSolution();
-		solObjValue=rootSolver.getObjective();
+		denseBAVector solVector=rootSolver.getPrimalSolution();
+		solution=BBSMPSSolution(solVector,rootSolver.getObjective());
+		
 	}
 	//return if success
 	timesCalled++;

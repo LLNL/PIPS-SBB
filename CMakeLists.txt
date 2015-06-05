@@ -116,6 +116,7 @@ add_library(pipssbb BBSMPSTree/BBSMPSTree.cpp
 	BBSMPSHeuristics/BBSMPSHeuristic.cpp 
 	BBSMPSHeuristics/BBSMPSHeuristicRounding.cpp
 	BBSMPSTree/BBSMPSSolver.cpp 
-	BBSMPSTree/BBSMPSSolverState.cpp)
+	BBSMPSTree/BBSMPSSolverState.cpp
+	BBSMPSTree/BBSMPSSolution.cpp)
 add_executable(pipssbbSMPS pipssbbSMPS.cpp)
 target_link_libraries(pipssbbSMPS pipssbb pipss stochInput ${COIN_LIBS} ${MATH_LIBS} ${Boost_LIBRARIES})	
