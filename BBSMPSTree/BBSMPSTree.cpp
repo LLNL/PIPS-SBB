@@ -67,7 +67,9 @@ lpPrimalTol(1e-6),
 lpDualTol(1e-6),
 compTol(lpPrimalTol),
 status(LoadedFromFile),
-nodesel(BestBound)
+nodesel(BestBound),
+tiLim(COIN_INT_MAX),
+nodeLim(COIN_INT_MAX)
 {
 
 	BBSMPSSolver::initialize(smps); 
@@ -131,6 +133,55 @@ nodesel(BestBound)
     if ((lpObj - compTol) >= objLB) objLB = lpObj;
 
     BBSMPSNode *rootNode= new BBSMPSNode(lpObj,states);
+
+    //if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Pushing root node onto B&B tree.";
+    heap.push(rootNode);
+    //if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Exiting B&B constructor.";
+
+    BBSMPSMaxFracBranchingRule *mfbr= new BBSMPSMaxFracBranchingRule(10);
+    branchingRuleManager.addBranchingRule(mfbr);
+
+
+   
+    bbIterationCounter=0;
+}
+
+
+
+BBSMPSTree::BBSMPSTree(BBSMPSNode &node, double lb, double ub): 
+objUB(ub),
+objLB(lb),
+optGapTol(1e-6),
+lpPrimalTol(1e-6),
+lpDualTol(1e-6),
+compTol(lpPrimalTol),
+status(LoadedFromFile),
+nodesel(BestBound),
+tiLim(COIN_INT_MAX),
+nodeLim(COIN_INT_MAX)
+{
+
+	cout<<"LBS "<<lb<<" "<<ub<<endl;
+	//This initialization assumes the solver class has already been intialized
+	assert(BBSMPSSolver::isInitialized());
+
+    //if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Calling B&B tree constructor.";
+
+    /* Initialize branch-and-bound tree/heap */
+    // Get {lower, upper} bounds on decision variables, lower bound on objective function
+    // value from parent LP, initialize a node, and push onto heap to start.
+    assert (heap.empty()); // heap should be empty to start
+    
+    PIPSSInterface &rootSolver= BBSMPSSolver::instance()->getPIPSInterface();
+   
+    rootSolver.setPrimalTolerance(lpPrimalTol);
+    rootSolver.setDualTolerance(lpDualTol);
+
+
+    double lpObj = -INFINITY;
+    if ((lpObj - compTol) >= objLB) objLB = lpObj;
+
+    BBSMPSNode *rootNode= new BBSMPSNode(node);
 
     //if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Pushing root node onto B&B tree.";
     heap.push(rootNode);
@@ -261,16 +312,30 @@ bool BBSMPSTree::isLPIntFeas(const denseBAVector& primalSoln) {
 
 
 void BBSMPSTree::branchAndBound() {
-	double t = MPI_Wtime();
+
+	timeStart= MPI_Wtime();
+
 	int mype=BBSMPSSolver::instance()->getMype();
 	PIPSSInterface &rootSolver= BBSMPSSolver::instance()->getPIPSInterface();
 
 	if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Starting branch-and-bound.";
-
+	
 	/* While heap not empty and there are still nodes in tree */
 	// TODO: Add tolerance on optimality gap, time limit option.
 	while (true) {
 
+		double timeElapsed= MPI_Wtime();
+		if ((timeElapsed-timeStart)>tiLim){
+			if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Time Limit reached.";
+			status.setStatusToStopped();
+			break;
+		}
+		
+		if (bbIterationCounter>nodeLim){
+			if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Node Limit reached.";
+			status.setStatusToStopped();
+			break;
+		}
 		/* If heap is empty, update status to Stopped (if possible) and break. */
 		if (heap.empty()) {
 			if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Heap is empty.";
@@ -452,11 +517,11 @@ void BBSMPSTree::branchAndBound() {
 			}
 
 		}
-			/* If primal solution is integral: */
-			//  - Update solver status to PrimalFeasible
-			//  - Check if upper bound improved
-			//  - If so, update current primal solution for that upper bound
-			//  - Fathom node, go to start of loop
+		/* If primal solution is integral: */
+		//  - Update solver status to PrimalFeasible
+		//  - Check if upper bound improved
+		//  - If so, update current primal solution for that upper bound
+		//  - Fathom node, go to start of loop
 
 		if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Checking for integrality of primal solution...";
 		if(isLPIntFeas(primalSoln)) {
@@ -533,7 +598,43 @@ void BBSMPSTree::branchAndBound() {
 		heuristicsManager.printStatistics();
 		branchingRuleManager.printStatistics();
 	}
-	t = MPI_Wtime() - t;
+	double t = MPI_Wtime() - timeStart;
 	BBSMPS_APP_LOG_SEV(summary)<<boost::format("Branch and Bound took %f seconds") % t;
 
 }
+
+
+void BBSMPSTree::setTimeLimit(int _tiLim){
+	tiLim=_tiLim;
+}
+
+void BBSMPSTree::setNodeLimit(int _nodeLim){
+	nodeLim=_nodeLim;
+}
+
+bool BBSMPSTree::retrieveBestSolution(BBSMPSSolution &solution){
+	//At the moment, the solution pool is unordered
+	int bestSolutionIndex=-1;
+	double bestSolutionValue=COIN_DBL_MAX;
+	for (int i=0; i<solutionPool.size();i++){
+		if (bestSolutionValue>= solutionPool[i].getObjValue()){
+			bestSolutionIndex=i;
+			bestSolutionValue=solutionPool[i].getObjValue();
+		}
+	}
+	if (bestSolutionIndex!=-1){
+		solution=solutionPool[bestSolutionIndex];
+		return true;
+	}
+	return false;
+}
+
+
+  void BBSMPSTree::loadSimpleHeuristics(){
+  	BBSMPSHeuristicRounding *hr= new BBSMPSHeuristicRounding(1,1,"SimpleRounding");
+    heuristicsManager.addHeuristic(hr);
+  }
+
+  void BBSMPSTree::loadMIPHeuristics(){
+
+  }

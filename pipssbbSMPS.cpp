@@ -54,6 +54,8 @@ int main(int argc, char **argv) {
 	if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Initializing branch-and-bound tree.";
 	BBSMPSTree bb(input);
 
+	bb.loadSimpleHeuristics();
+	bb.loadMIPHeuristics();
 	/*
 	// Solve deterministic LP formulation via dual simplex
 	PIPSSInterface solver(input, ctx, PIPSSInterface::useDual);
@@ -74,7 +76,7 @@ int main(int argc, char **argv) {
 		if (0 == mype) printf("Finished writing solution\n");
 	}
 	*/
-
+	
 	if (0 == mype) BBSMPS_ALG_LOG_SEV(info) <<"Calling branch-and-bound.";
 	bb.branchAndBound();
 

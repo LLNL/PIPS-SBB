@@ -33,6 +33,7 @@
 #include <cmath> // for floor, ceil, abs functions
 #include <algorithm> // for min
 #include <vector>
+
 #include "BBSMPSMaxFracBranchingRule.hpp"
 #include "BBSMPSBranchingRuleManager.hpp"
 #include "BBSMPSHeuristicsManager.hpp"
@@ -93,13 +94,22 @@ public:
 
   BBSMPSTree(const SMPSInput& smps);
 
+  BBSMPSTree(BBSMPSNode &node, double lb=COIN_DBL_MIN, double ub=COIN_DBL_MAX);
 
   // Default destructor
   ~BBSMPSTree(){}
 
+  void setTimeLimit(int _tiLim);
 
+  void setNodeLimit(int _nodeLim);
+
+  bool retrieveBestSolution(BBSMPSSolution &solution);
 
   void branchAndBound();
+
+  void loadSimpleHeuristics();
+
+  void loadMIPHeuristics();
 
 private:
 
@@ -120,6 +130,12 @@ private:
   double compTol; // tolerance on LP objective function comparisons
 
   int bbIterationCounter;
+
+  double timeStart;
+
+  int tiLim;
+
+  int nodeLim;
 
   BBSMPSBranchingRuleManager branchingRuleManager;
   BBSMPSHeuristicsManager heuristicsManager;
@@ -155,6 +171,8 @@ private:
   void setStatusToProvenInfeasible();
 
   void setStatusToStopped();
+
+
 
   
   // Make default constructor impossible to call.

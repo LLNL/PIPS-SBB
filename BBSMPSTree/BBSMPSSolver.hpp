@@ -50,6 +50,7 @@ public:
 
   static BBSMPSSolver *instance();
   static BBSMPSSolver *initialize(const SMPSInput &_input);
+  static bool isInitialized();
 
 protected:
 

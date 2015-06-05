@@ -57,5 +57,8 @@ dimsSlacks(dims){
   ub = rootSolver.getUB();
 }
 
+bool BBSMPSSolver::isInitialized(){
+  return (solverInstance!=NULL);
+}
 
 
