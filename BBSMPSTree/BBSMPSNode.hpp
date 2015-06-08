@@ -73,6 +73,7 @@ public:
     nodeNumber=sourceNode.nodeNumber;
     nodeDepth=sourceNode.nodeDepth;
 
+
     // Return existing object for chaining.
     //if (0 == mype) cout << "Exiting copy assignment operator!\n";
     return *this;
@@ -94,6 +95,8 @@ public:
 
   void decrementAliveChildren();
 
+  void eliminate();
+  
   void setWarmStartState(BAFlagVector<variableState> &state);
 
   void getWarmStartState(BAFlagVector<variableState> &state);

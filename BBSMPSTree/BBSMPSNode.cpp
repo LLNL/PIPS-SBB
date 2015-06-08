@@ -38,6 +38,7 @@ BBSMPSNode::BBSMPSNode(BBSMPSNode* parent_ptr, std::vector<BBSMPSBranchingInfo>&
     nodeDepth=0;
 
   }
+
   objectiveValue=-INFINITY;
   branchingInfos=std::vector<BBSMPSBranchingInfo>(bInfos);
   childrenAlive=0;
@@ -103,6 +104,15 @@ void BBSMPSNode::decrementAliveChildren(){
 }
 
 
+void BBSMPSNode::eliminate(){
+
+  if (childrenAlive==0){
+    delete this;
+  }
+
+
+}
+
 
 void BBSMPSNode::setWarmStartState(BAFlagVector<variableState> &state){
 
@@ -150,6 +160,10 @@ void BBSMPSNode::getAllBranchingInformation(denseBAVector &lb,denseBAVector &ub)
     else if (allBranchings[i].getDirection()=='U'){
       ub.getFirstStageVec()[varN] =  std::min(bd,ub.getFirstStageVec()[varN]);
     }
+    else if(allBranchings[i].getDirection()=='E'){
+      lb.getFirstStageVec()[varN] = std::max(bd,lb.getFirstStageVec()[varN]);
+      ub.getFirstStageVec()[varN] =  std::min(bd,ub.getFirstStageVec()[varN]);
+    }
   }
   else{
     int scenario=allBranchings[i].getScenarioNumber();
@@ -160,6 +174,10 @@ void BBSMPSNode::getAllBranchingInformation(denseBAVector &lb,denseBAVector &ub)
       lb.getSecondStageVec(scenario)[varN] = std::max(bd,lb.getSecondStageVec(scenario)[varN]);
     }
     else if (allBranchings[i].getDirection()=='U'){
+      ub.getSecondStageVec(scenario)[varN] =  std::min(bd,ub.getSecondStageVec(scenario)[varN]);
+    }
+    else if(allBranchings[i].getDirection()=='E'){
+      lb.getSecondStageVec(scenario)[varN] = std::max(bd,lb.getSecondStageVec(scenario)[varN]);
       ub.getSecondStageVec(scenario)[varN] =  std::min(bd,ub.getSecondStageVec(scenario)[varN]);
     }
   }

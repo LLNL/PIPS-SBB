@@ -28,7 +28,7 @@ public:
 	~BBSMPSHeuristic();
 	virtual bool shouldItRun(BBSMPSNode* node, denseBAVector &LPRelaxationSolution){return true;};
 	bool checkPeriodicity(BBSMPSNode* node);
-	virtual bool runHeuristic(BBSMPSNode* node, denseBAVector &LPRelaxationSolution, BBSMPSSolution &solution){std::cout<<"Well, this is an error...\n";};
+	virtual bool runHeuristic(BBSMPSNode* node, denseBAVector &LPRelaxationSolution, BBSMPSSolution &solution, double objUB){std::cout<<"Well, this is an error...\n";};
 
 	virtual void printStatistics();
 private:

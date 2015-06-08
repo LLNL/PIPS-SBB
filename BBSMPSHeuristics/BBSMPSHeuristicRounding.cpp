@@ -3,10 +3,10 @@
 using namespace std;
 
 
-bool BBSMPSHeuristicRounding::runHeuristic(BBSMPSNode* node, denseBAVector &LPRelaxationSolution, BBSMPSSolution &solution){
+bool BBSMPSHeuristicRounding::runHeuristic(BBSMPSNode* node, denseBAVector &LPRelaxationSolution, BBSMPSSolution &solution, double objUB){
 	
 	int mype=BBSMPSSolver::instance()->getMype();
-	
+	timesCalled++;
 	if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Performing the simple rounding heuristic.";
 		
 
@@ -73,7 +73,7 @@ bool BBSMPSHeuristicRounding::runHeuristic(BBSMPSNode* node, denseBAVector &LPRe
 		
 	}
 	//return if success
-	timesCalled++;
+	
 	timesSuccessful+=(!otherThanOptimal);
 
 	if (0 == mype && !otherThanOptimal) BBSMPS_ALG_LOG_SEV(info) << "The simple rounding heuristic was successful.";

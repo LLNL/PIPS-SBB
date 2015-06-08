@@ -16,8 +16,7 @@
 class BBSMPSBranchingInfo {
 
 public:
-	BBSMPSBranchingInfo(int _varNumber, double _bound, char _direction, int _stage);
-	BBSMPSBranchingInfo(int _varNumber, double _bound, char _direction, int _stage, int _scenario);
+	BBSMPSBranchingInfo(int _varNumber, double _bound, char _direction, int _stage, int _scenario=-1);
 	~BBSMPSBranchingInfo();
 
 	int getVarNumber();

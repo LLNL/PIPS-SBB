@@ -38,11 +38,13 @@
 #include "BBSMPSBranchingRuleManager.hpp"
 #include "BBSMPSHeuristicsManager.hpp"
 #include "BBSMPSHeuristicRounding.hpp"
+#include "BBSMPSHeuristicRENS.hpp"
 #include "BBSMPSUtils.hpp"
 #include "BBSMPSSolver.hpp"
 #include "BBSMPSSolverState.hpp"
 #include "BBSMPSLogging.hpp"
 #include "BBSMPSSolution.hpp"
+#include "BBSMPSHeuristicRINS.hpp"
 // Outputs solver status:
 void outputLPStatus(solverState lpStatus);
 
@@ -97,7 +99,7 @@ public:
   BBSMPSTree(BBSMPSNode &node, double lb=COIN_DBL_MIN, double ub=COIN_DBL_MAX);
 
   // Default destructor
-  ~BBSMPSTree(){}
+  ~BBSMPSTree();
 
   void setTimeLimit(int _tiLim);
 
@@ -110,6 +112,9 @@ public:
   void loadSimpleHeuristics();
 
   void loadMIPHeuristics();
+
+  void setVerbosity(bool verbose);
+  BBSMPSNode* topOfHeap();
 
 private:
 
@@ -136,6 +141,10 @@ private:
   int tiLim;
 
   int nodeLim;
+
+  int nodesFathomed;
+  int nodesBecameInteger;
+  bool verbosityActivated;
 
   BBSMPSBranchingRuleManager branchingRuleManager;
   BBSMPSHeuristicsManager heuristicsManager;
@@ -171,7 +180,6 @@ private:
   void setStatusToProvenInfeasible();
 
   void setStatusToStopped();
-
 
 
   

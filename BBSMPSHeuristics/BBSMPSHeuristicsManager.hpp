@@ -28,12 +28,14 @@ public:
 
 	void addHeuristic(BBSMPSHeuristic *heuristic);
 
-	bool runHeuristics(BBSMPSNode* n,denseBAVector &LPRelaxationSolution, std::vector<BBSMPSSolution> &solutions);
+	bool runHeuristics(BBSMPSNode* n,denseBAVector &LPRelaxationSolution, std::vector<BBSMPSSolution> &solutions, double objUB);
 
 	void printStatistics();
 
+	void freeResources();
+
 private:
-	std::multiset<BBSMPSHeuristic*> heuristicsList;
+	std::vector<BBSMPSHeuristic*> heuristicsList;
 };
 
 #endif

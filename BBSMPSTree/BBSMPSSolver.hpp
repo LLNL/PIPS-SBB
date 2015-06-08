@@ -47,10 +47,12 @@ public:
   BADimensionsSlacks& getBADimensionsSlacks();
   denseBAVector& getOriginalLB();
   denseBAVector& getOriginalUB();
-
+  denseBAVector& getLPRelaxation();
+  void setLPRelaxation(denseBAVector &_LPRelaxation);
   static BBSMPSSolver *instance();
   static BBSMPSSolver *initialize(const SMPSInput &_input);
   static bool isInitialized();
+
 
 protected:
 
@@ -65,6 +67,7 @@ private:
   BADimensionsSlacks dimsSlacks; // Dimension object for warm start info
   denseBAVector lb;
   denseBAVector ub;
+  denseBAVector LPRelaxation;
 
   static BBSMPSSolver *solverInstance;
 };

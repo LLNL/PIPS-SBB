@@ -39,6 +39,8 @@ public:
 	
 	void printStatistics();
 
+	void freeResources();
+
 private:
 
 	std::multiset<BBSMPSBranchingRule*, BRPriorityOrdering> branchingRuleList;

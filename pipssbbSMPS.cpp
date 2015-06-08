@@ -2,7 +2,7 @@
 #include "BAData.hpp"
 #include "PIPSSInterface.hpp"
 #include "BBSMPSTree.hpp"
-
+#include "BBSMPSNode.hpp"
 #include <boost/scoped_ptr.hpp>
 #include <cstdlib>
 
@@ -56,6 +56,7 @@ int main(int argc, char **argv) {
 
 	bb.loadSimpleHeuristics();
 	bb.loadMIPHeuristics();
+	bb.setNodeLimit(50);
 	/*
 	// Solve deterministic LP formulation via dual simplex
 	PIPSSInterface solver(input, ctx, PIPSSInterface::useDual);
@@ -79,6 +80,7 @@ int main(int argc, char **argv) {
 	
 	if (0 == mype) BBSMPS_ALG_LOG_SEV(info) <<"Calling branch-and-bound.";
 	bb.branchAndBound();
+
 
 	if (0 == mype) BBSMPS_APP_LOG_SEV(info) <<"Application successfully terminated.";
 	// Clean up MPI data structures

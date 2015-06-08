@@ -7,19 +7,21 @@ BBSMPSHeuristicsManager::~BBSMPSHeuristicsManager(){};
 
 void BBSMPSHeuristicsManager::addHeuristic(BBSMPSHeuristic *heuristic){
 	assert(heuristic!=NULL);
-	heuristicsList.insert(heuristic);
+	heuristicsList.push_back(heuristic);
 }
 
-bool BBSMPSHeuristicsManager::runHeuristics(BBSMPSNode* node,denseBAVector &LPRelaxationSolution, vector<BBSMPSSolution> &solutions){
+bool BBSMPSHeuristicsManager::runHeuristics(BBSMPSNode* node,denseBAVector &LPRelaxationSolution, vector<BBSMPSSolution> &solutions, double objUB){
 	bool success=false;
-	std::multiset<BBSMPSHeuristic*>::iterator it;
-	for (it=heuristicsList.begin(); it!=heuristicsList.end(); ++it){
-		BBSMPSHeuristic *heur=(*it);
+	int mype=BBSMPSSolver::instance()->getMype();
+	
+	for (int it=0;it<heuristicsList.size(); it++){
+		BBSMPSHeuristic *heur=heuristicsList[it];
 		if (heur->checkPeriodicity(node) && heur->shouldItRun(node,LPRelaxationSolution)){
 			BBSMPSSolution auxSol;
 			
-			bool heurSuccess=heur->runHeuristic(node, LPRelaxationSolution,  auxSol);
+			bool heurSuccess=heur->runHeuristic(node, LPRelaxationSolution,  auxSol,objUB);
 			if (heurSuccess){
+
 				solutions.push_back(auxSol);
 
 			}
@@ -33,10 +35,16 @@ bool BBSMPSHeuristicsManager::runHeuristics(BBSMPSNode* node,denseBAVector &LPRe
 
 void BBSMPSHeuristicsManager::printStatistics(){
 	BBSMPS_ALG_LOG_SEV(info)<<"++++++++++++++HEURISTIC STATISTICS++++++++++++++++";
-	std::multiset<BBSMPSHeuristic*>::iterator it;
-	for (it=heuristicsList.begin(); it!=heuristicsList.end(); ++it){
-		BBSMPSHeuristic *heur=(*it);
+	for (int it=0;it<heuristicsList.size(); it++){
+		BBSMPSHeuristic *heur=heuristicsList[it];
 		heur->printStatistics();
 	}
 	BBSMPS_ALG_LOG_SEV(info)<<"++++++++++++++++++++++++++++++++++++++++++++++++++";
+}
+
+void BBSMPSHeuristicsManager::freeResources(){
+	for (int it=0;it<heuristicsList.size(); it++){
+		BBSMPSHeuristic *heur=heuristicsList[it];
+		delete heur;
+	}
 }

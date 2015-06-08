@@ -2,12 +2,7 @@
 
 using namespace std;
 
-BBSMPSBranchingInfo::BBSMPSBranchingInfo(int _varNumber, double _bound, char _direction, int _stage):
-varNumber(_varNumber),
-bound(_bound),
-direction(_direction),
-stage(_stage),
-scenario(-1){}
+
 BBSMPSBranchingInfo::BBSMPSBranchingInfo(int _varNumber, double _bound, char _direction, int _stage, int _scenario):
 varNumber(_varNumber),
 bound(_bound),

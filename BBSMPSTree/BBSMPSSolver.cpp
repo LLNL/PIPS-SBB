@@ -39,6 +39,14 @@ BBSMPSSolver *BBSMPSSolver::instance(){
   return solverInstance;
 }
 
+//TODO: The relaxation could not be initialized. we need proper guards.
+denseBAVector& BBSMPSSolver::getLPRelaxation(){
+  return LPRelaxation;
+}
+void BBSMPSSolver::setLPRelaxation(denseBAVector &_LPRelaxation){
+  LPRelaxation=_LPRelaxation;
+}
+
 
 BBSMPSSolver *BBSMPSSolver::initialize(const SMPSInput &_input){
  if (solverInstance) delete solverInstance;

@@ -69,12 +69,13 @@ compTol(lpPrimalTol),
 status(LoadedFromFile),
 nodesel(BestBound),
 tiLim(COIN_INT_MAX),
-nodeLim(COIN_INT_MAX)
+nodeLim(COIN_INT_MAX),
+verbosityActivated(true)
 {
 
 	BBSMPSSolver::initialize(smps); 
 
-    //if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Calling B&B tree constructor.";
+    //if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Calling B&B tree constructor.";
 
     /* Initialize branch-and-bound tree/heap */
     // Get {lower, upper} bounds on decision variables, lower bound on objective function
@@ -108,19 +109,19 @@ nodeLim(COIN_INT_MAX)
     rootSolver.go();
 
     // Get lower & upper bounds on decision variables in LP.
-    //if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Getting bounds for root node from presolve.";
+    //if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Getting bounds for root node from presolve.";
     denseBAVector lb(rootSolver.getLB()), ub(rootSolver.getUB());
 
        // Allocate current best primal solution; normally this primal solution
     // is for the upper bound, but here, we have only the solution to an
     // LP relaxation, which may not be primal feasible. We don't check
     // primal/integer feasibility here.
-    //pwdif (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Allocating primal solution.";
+    //pwdif (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Allocating primal solution.";
     ubPrimalSolution.allocate(dimsSlacks, ctx, PrimalVector);
-    //if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Getting primal solution";
+    //if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Getting primal solution";
     ubPrimalSolution.copyFrom(rootSolver.getPrimalSolution());
-    //if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "MIP Primal solution updated"; 
-
+    //if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "MIP Primal solution updated"; 
+    BBSMPSSolver::instance()->setLPRelaxation(ubPrimalSolution);
     // Update state of primal variables + slacks; slacks must be included
     // because these are used in a reformulation of the problem to standard
     // form: Ax + s = b, s >= 0.
@@ -134,9 +135,9 @@ nodeLim(COIN_INT_MAX)
 
     BBSMPSNode *rootNode= new BBSMPSNode(lpObj,states);
 
-    //if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Pushing root node onto B&B tree.";
+    //if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Pushing root node onto B&B tree.";
     heap.push(rootNode);
-    //if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Exiting B&B constructor.";
+    //if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Exiting B&B constructor.";
 
     BBSMPSMaxFracBranchingRule *mfbr= new BBSMPSMaxFracBranchingRule(10);
     branchingRuleManager.addBranchingRule(mfbr);
@@ -144,6 +145,8 @@ nodeLim(COIN_INT_MAX)
 
    
     bbIterationCounter=0;
+       nodesFathomed=0;
+   nodesBecameInteger=0;
 }
 
 
@@ -158,14 +161,14 @@ compTol(lpPrimalTol),
 status(LoadedFromFile),
 nodesel(BestBound),
 tiLim(COIN_INT_MAX),
-nodeLim(COIN_INT_MAX)
+nodeLim(COIN_INT_MAX),
+verbosityActivated(true)
 {
 
-	cout<<"LBS "<<lb<<" "<<ub<<endl;
 	//This initialization assumes the solver class has already been intialized
 	assert(BBSMPSSolver::isInitialized());
 
-    //if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Calling B&B tree constructor.";
+    //if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Calling B&B tree constructor.";
 
     /* Initialize branch-and-bound tree/heap */
     // Get {lower, upper} bounds on decision variables, lower bound on objective function
@@ -183,19 +186,34 @@ nodeLim(COIN_INT_MAX)
 
     BBSMPSNode *rootNode= new BBSMPSNode(node);
 
-    //if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Pushing root node onto B&B tree.";
+    //if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Pushing root node onto B&B tree.";
     heap.push(rootNode);
-    //if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Exiting B&B constructor.";
+    //if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Exiting B&B constructor.";
 
     BBSMPSMaxFracBranchingRule *mfbr= new BBSMPSMaxFracBranchingRule(10);
     branchingRuleManager.addBranchingRule(mfbr);
 
 
-    BBSMPSHeuristicRounding *hr= new BBSMPSHeuristicRounding(1,1,"SimpleRounding");
-    heuristicsManager.addHeuristic(hr);
     bbIterationCounter=0;
+     nodesFathomed=0;
+   nodesBecameInteger=0;
 }
 
+BBSMPSTree::~BBSMPSTree(){
+	//Dismantling nodes
+	while (!heap.empty()){
+		BBSMPSNode *currentNode_ptr=(heap.top());
+		currentNode_ptr->eliminate();
+		heap.pop();
+
+	}
+
+	//Dismantling Branching Rules
+  	branchingRuleManager.freeResources();
+
+	//Dismantling Heuristics
+	heuristicsManager.freeResources();
+}
 
 
 int BBSMPSTree::getFirstStageMinIntInfeasCol(const denseBAVector& primalSoln) {
@@ -318,7 +336,7 @@ void BBSMPSTree::branchAndBound() {
 	int mype=BBSMPSSolver::instance()->getMype();
 	PIPSSInterface &rootSolver= BBSMPSSolver::instance()->getPIPSInterface();
 
-	if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Starting branch-and-bound.";
+	if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Starting branch-and-bound.";
 	
 	/* While heap not empty and there are still nodes in tree */
 	// TODO: Add tolerance on optimality gap, time limit option.
@@ -326,26 +344,26 @@ void BBSMPSTree::branchAndBound() {
 
 		double timeElapsed= MPI_Wtime();
 		if ((timeElapsed-timeStart)>tiLim){
-			if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Time Limit reached.";
+			if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Time Limit reached.";
 			status.setStatusToStopped();
 			break;
 		}
 		
 		if (bbIterationCounter>nodeLim){
-			if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Node Limit reached.";
+			if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Node Limit reached.";
 			status.setStatusToStopped();
 			break;
 		}
 		/* If heap is empty, update status to Stopped (if possible) and break. */
 		if (heap.empty()) {
-			if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Heap is empty.";
+			if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Heap is empty.";
 			status.setStatusToStopped();
 
 		/* If solver status is primal feasible, and the heap is empty, then
 		the solution must be optimal. */
 			if (status.isPrimalFeasible()) {
 				status.setStatusToOptimal();
-				if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Optimal solution found.";
+				if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Optimal solution found.";
 			}
 
 		/* If solver status is not primal feasible, then the MILP must be
@@ -353,7 +371,7 @@ void BBSMPSTree::branchAndBound() {
 		// TODO: Add test for unboundedness.
 			if (status.isLoadedFromFile()) {
 				status.setStatusToProvenInfeasible();
-				if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "MILP is infeasible.";
+				if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "MILP is infeasible.";
 			}
 
 			break;
@@ -361,7 +379,7 @@ void BBSMPSTree::branchAndBound() {
 
 		/* Get top-most node and pop it off of heap. */
 		BBSMPSNode *currentNode_ptr=(heap.top());
-		if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Copying node " << currentNode_ptr->getNodeNumber() << " off tree.";
+		if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Copying node " << currentNode_ptr->getNodeNumber() << " off tree.";
 
 		//if (0 == mype) cout << "Popping node " << nodeNumber << " off tree!\n";
 		heap.pop();
@@ -369,18 +387,18 @@ void BBSMPSTree::branchAndBound() {
 		if (nodesel == BestBound) {
 			objLB=currentNode_ptr->getParentObjective();
 			if ((objLB - compTol) >= objUB) {
-				if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Can stop if best bound node selection rule";
+				if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Can stop if best bound node selection rule";
 				status.setStatusToOptimal();
-				if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "All nodes can be fathomed! Terminating.";
-				break;
+				if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "All nodes can be fathomed! Terminating.";
+				break; 
 			}
 				
 		}
 
 		/* Set bounds of LP decision variables from BBSMPSNode */
-		//if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Setting bounds for LP subproblem.";
-		//if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Parent objective of this node "<< currentNode_ptr->getParentObjective();
-		//if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Parent pointer of this node "<< (currentNode_ptr->getParentPtr()!=NULL);
+		//if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Setting bounds for LP subproblem.";
+		//if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Parent objective of this node "<< currentNode_ptr->getParentObjective();
+		//if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Parent pointer of this node "<< (currentNode_ptr->getParentPtr()!=NULL);
 
 		denseBAVector lb(BBSMPSSolver::instance()->getOriginalLB());
 		denseBAVector ub(BBSMPSSolver::instance()->getOriginalUB());
@@ -391,14 +409,14 @@ void BBSMPSTree::branchAndBound() {
 		rootSolver.setUB(ub);
 
 		/* Set information on basic/nonbasic variables for warm starting */
-		//if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Setting warm start information.";
+		//if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Setting warm start information.";
 		BAFlagVector<variableState> ps;
 		currentNode_ptr->getWarmStartState(ps);
 
 		rootSolver.setStates(ps);
 		rootSolver.commitStates();
 		/* Solve LP defined by current node*/
-		//if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Solving LP subproblem.";
+		//if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Solving LP subproblem.";
 		rootSolver.go();
 
 		/* Check solver status for infeasibility/optimality */
@@ -411,28 +429,29 @@ void BBSMPSTree::branchAndBound() {
 		if (0 == mype) outputLPStatus(lpStatus);
 
 		bool isLPinfeasible = (ProvenInfeasible == lpStatus); 
-		//if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "isLPinfeasible = " << isLPinfeasible;
+		//if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "isLPinfeasible = " << isLPinfeasible;
 		bool isLPunbounded = (ProvenUnbounded == lpStatus);
-		//if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "isLPunbounded = " << isLPunbounded ;
+		//if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "isLPunbounded = " << isLPunbounded ;
 		bool isLPoptimal = (Optimal == lpStatus);
-		//if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "isLPoptimal = " << isLPoptimal;
+		//if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "isLPoptimal = " << isLPoptimal;
 		bool isLPother = (!isLPinfeasible && !isLPunbounded && !isLPoptimal);
-		//if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "isLPother = " << isLPother;
+		//if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "isLPother = " << isLPother;
 		assert (!isLPother); // Error if not infeasible/unbounded/optimal
 
 		/* Fathom by infeasibility */
 		// If LP solver returns infeasibility, fathom node, go to start of loop
-		if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Checking for infeasibility...";
+		if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Checking for infeasibility...";
 		if (isLPinfeasible) {
-			if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Fathoming node " << currentNode_ptr->getNodeNumber() << " by infeasibility.";
-			delete currentNode_ptr;
+			if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Fathoming node " << currentNode_ptr->getNodeNumber() << " by infeasibility.";
+			currentNode_ptr->eliminate();
+			nodesFathomed++;
 			continue;
 		}
 
 		// Otherwise, LP is feasible. LP may be optimal or unbounded.
 		// If LP is unbounded, so is the MILP.
 		if (isLPunbounded) {
-			if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "LP relaxation of node " << currentNode_ptr->getNodeNumber()
+			if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "LP relaxation of node " << currentNode_ptr->getNodeNumber()
 				<< " is unbounded.\n"
 			<< "Please add additional constraints to "
 			<< "bound the MILP.";
@@ -480,17 +499,18 @@ void BBSMPSTree::branchAndBound() {
 			// the MILP objective function.
 
 			// Get LP objective function value.
-			if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Getting LP objective...";
+			if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Getting LP objective...";
 			double lpObj = rootSolver.getObjective();
 
 			currentNode_ptr->setObjective(lpObj);
 
-			if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Checking for value dominance...";
+			if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Checking for value dominance...";
 
 			if ((lpObj - compTol) >= objUB) {
-				if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Fathoming node " << currentNode_ptr->getNodeNumber() << " by value dominance.";
+				if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Fathoming node " << currentNode_ptr->getNodeNumber() << " by value dominance.";
 
-				delete currentNode_ptr;
+				currentNode_ptr->eliminate();
+				nodesFathomed++;
 				continue;
 			}
 				
@@ -499,20 +519,21 @@ void BBSMPSTree::branchAndBound() {
 		}
 
 		/* Get primal solution */
-		//if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Getting primal solution...";
+		//if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Getting primal solution...";
 		denseBAVector primalSoln(rootSolver.getPrimalSolution());
 
 		//We run heuristics and make sure found solutions are integral before adding them to the pool.
 		vector<BBSMPSSolution> heuristicSolutions;
-		heuristicsManager.runHeuristics(currentNode_ptr,primalSoln,heuristicSolutions);
+		heuristicsManager.runHeuristics(currentNode_ptr,primalSoln,heuristicSolutions,objUB);
 		if (heuristicSolutions.size()>0) {
-			if (0 == mype) BBSMPS_ALG_LOG_SEV(info)<<"Heuristic found solution.";
+			if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info)<<"Heuristic found solution.";
 			for (int i=0; i< heuristicSolutions.size(); i++){
 				denseBAVector solVector;
 				heuristicSolutions[i].getSolutionVector(solVector);
 				if (heuristicSolutions[i].getObjValue()<objUB && isLPIntFeas(solVector)){
 					objUB=heuristicSolutions[i].getObjValue();
 					solutionPool.push_back(heuristicSolutions[i]);
+					status.setStatusToPrimalFeasible();
 				}
 			}
 
@@ -523,9 +544,9 @@ void BBSMPSTree::branchAndBound() {
 		//  - If so, update current primal solution for that upper bound
 		//  - Fathom node, go to start of loop
 
-		if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Checking for integrality of primal solution...";
+		if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Checking for integrality of primal solution...";
 		if(isLPIntFeas(primalSoln)) {
-			if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Node " << currentNode_ptr->getNodeNumber() << " is integer feasible.";
+			if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Node " << currentNode_ptr->getNodeNumber() << " is integer feasible.";
 			status.setStatusToPrimalFeasible();
 
 			// TODO: Maintain solution pool of best k solutions for k = some small value
@@ -535,12 +556,13 @@ void BBSMPSTree::branchAndBound() {
 			double newUB = rootSolver.getObjective();
 			bool isNewUBbetter = (newUB < (objUB - compTol));
 			if (isLPoptimal && isNewUBbetter) {
-				if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Updating best upper bound to " << newUB ;
+				if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Updating best upper bound to " << newUB ;
 				objUB = rootSolver.getObjective();
 				ubPrimalSolution.copyFrom(primalSoln);
 				solutionPool.push_back(BBSMPSSolution(ubPrimalSolution,newUB));
 			}
-			delete currentNode_ptr;
+			currentNode_ptr->eliminate();
+			nodesBecameInteger++;
 			continue;
 		}
 
@@ -557,7 +579,7 @@ void BBSMPSTree::branchAndBound() {
 		if (abs(objUB - objLB) <= optGapTol) {
 			assert(objLB <= objUB); // this statement could be tripped by numerical error
 			status.setStatusToOptimal();
-			if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Optimality gap reached! Terminating.";
+			if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Optimality gap reached! Terminating.";
 			break;
 		}
 
@@ -582,7 +604,7 @@ void BBSMPSTree::branchAndBound() {
 
 		}
 		bbIterationCounter++;
-		if (0 == mype) {
+		if (0 == mype && verbosityActivated) {
 			BBSMPS_ALG_LOG_SEV(info)<<"\n----------------------------------------------------\n"<<
 			"Iteration "<<bbIterationCounter<<":LB:"<<objLB<<":UB:"<<objUB<<":Tree Size:"<<heap.size()<<"\n"<<
 			"----------------------------------------------------";
@@ -591,16 +613,18 @@ void BBSMPSTree::branchAndBound() {
 
 //if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Objective function value = " << objUB ;
 //if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Objective function LB = " << objLB ;
-	if (0 == mype) {
+	if (0 == mype && verbosityActivated) {
 		BBSMPS_ALG_LOG_SEV(info)<<"\n--------------EXPLORATION TERMINATED----------------\n"<<
 		"Iteration "<<bbIterationCounter<<":LB:"<<objLB<<":UB:"<<objUB<<":Tree Size:"<<heap.size()<<"\n"<<
+		":Nodes Fathomed:"<<nodesFathomed<<":Nodes with integer Solution:"<<nodesBecameInteger<<"\n"<<
 		"----------------------------------------------------";
 		heuristicsManager.printStatistics();
 		branchingRuleManager.printStatistics();
 	}
 	double t = MPI_Wtime() - timeStart;
-	BBSMPS_APP_LOG_SEV(summary)<<boost::format("Branch and Bound took %f seconds") % t;
-
+	if (0 == mype && verbosityActivated) {
+		BBSMPS_APP_LOG_SEV(summary)<<boost::format("Branch and Bound took %f seconds") % t;
+	}
 }
 
 
@@ -631,10 +655,23 @@ bool BBSMPSTree::retrieveBestSolution(BBSMPSSolution &solution){
 
 
   void BBSMPSTree::loadSimpleHeuristics(){
-  	BBSMPSHeuristicRounding *hr= new BBSMPSHeuristicRounding(1,1,"SimpleRounding");
+  	BBSMPSHeuristicRounding *hr= new BBSMPSHeuristicRounding(1,5,"SimpleRounding");
     heuristicsManager.addHeuristic(hr);
   }
 
   void BBSMPSTree::loadMIPHeuristics(){
+  	BBSMPSHeuristicRINS *hr= new BBSMPSHeuristicRINS(1,5,"RINS",200);
+	BBSMPSHeuristicRENS *hr2= new BBSMPSHeuristicRENS(1,5,"RENS",200);
 
+    heuristicsManager.addHeuristic(hr);
+    heuristicsManager.addHeuristic(hr2);
+  }
+
+  BBSMPSNode* BBSMPSTree::topOfHeap(){
+  	return heap.top();
+  }
+
+
+  void BBSMPSTree::setVerbosity(bool verbose){
+  	verbosityActivated=verbose;
   }
