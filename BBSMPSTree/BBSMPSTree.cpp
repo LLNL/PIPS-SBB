@@ -522,22 +522,7 @@ void BBSMPSTree::branchAndBound() {
 		//if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Getting primal solution...";
 		denseBAVector primalSoln(rootSolver.getPrimalSolution());
 
-		//We run heuristics and make sure found solutions are integral before adding them to the pool.
-		vector<BBSMPSSolution> heuristicSolutions;
-		heuristicsManager.runHeuristics(currentNode_ptr,primalSoln,heuristicSolutions,objUB);
-		if (heuristicSolutions.size()>0) {
-			if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info)<<"Heuristic found solution.";
-			for (int i=0; i< heuristicSolutions.size(); i++){
-				denseBAVector solVector;
-				heuristicSolutions[i].getSolutionVector(solVector);
-				if (heuristicSolutions[i].getObjValue()<objUB && isLPIntFeas(solVector)){
-					objUB=heuristicSolutions[i].getObjValue();
-					solutionPool.push_back(heuristicSolutions[i]);
-					status.setStatusToPrimalFeasible();
-				}
-			}
-
-		}
+		
 		/* If primal solution is integral: */
 		//  - Update solver status to PrimalFeasible
 		//  - Check if upper bound improved
@@ -559,11 +544,29 @@ void BBSMPSTree::branchAndBound() {
 				if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Updating best upper bound to " << newUB ;
 				objUB = rootSolver.getObjective();
 				ubPrimalSolution.copyFrom(primalSoln);
-				solutionPool.push_back(BBSMPSSolution(ubPrimalSolution,newUB));
+				BBSMPSSolution(rootSolver.getPrimalSolution(),newUB);
+				solutionPool.insert(BBSMPSSolution(rootSolver.getPrimalSolution(),newUB));
 			}
 			currentNode_ptr->eliminate();
 			nodesBecameInteger++;
 			continue;
+		}
+
+		//We run heuristics and make sure found solutions are integral before adding them to the pool.
+		vector<BBSMPSSolution> heuristicSolutions;
+		heuristicsManager.runHeuristics(currentNode_ptr,primalSoln,heuristicSolutions,objUB);
+		if (heuristicSolutions.size()>0) {
+			if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info)<<"Heuristic found solution.";
+			for (int i=0; i< heuristicSolutions.size(); i++){
+				denseBAVector solVector;
+				heuristicSolutions[i].getSolutionVector(solVector);
+				if (heuristicSolutions[i].getObjValue()<objUB && isLPIntFeas(solVector)){
+					objUB=heuristicSolutions[i].getObjValue();
+					solutionPool.insert(heuristicSolutions[i]);
+					status.setStatusToPrimalFeasible();
+				}
+			}
+
 		}
 
 		// TODO: Fathom by value dominance in breadth-first fashion?
@@ -637,25 +640,15 @@ void BBSMPSTree::setNodeLimit(int _nodeLim){
 }
 
 bool BBSMPSTree::retrieveBestSolution(BBSMPSSolution &solution){
-	//At the moment, the solution pool is unordered
-	int bestSolutionIndex=-1;
-	double bestSolutionValue=COIN_DBL_MAX;
-	for (int i=0; i<solutionPool.size();i++){
-		if (bestSolutionValue>= solutionPool[i].getObjValue()){
-			bestSolutionIndex=i;
-			bestSolutionValue=solutionPool[i].getObjValue();
-		}
-	}
-	if (bestSolutionIndex!=-1){
-		solution=solutionPool[bestSolutionIndex];
-		return true;
-	}
-	return false;
+	
+	if(solutionPool.empty()) return false;
+	solution = *(solutionPool.begin());
+	return true;
 }
 
 
   void BBSMPSTree::loadSimpleHeuristics(){
-  	BBSMPSHeuristicRounding *hr= new BBSMPSHeuristicRounding(1,5,"SimpleRounding");
+  	BBSMPSHeuristicRounding *hr= new BBSMPSHeuristicRounding(1,1,"SimpleRounding");
     heuristicsManager.addHeuristic(hr);
   }
 

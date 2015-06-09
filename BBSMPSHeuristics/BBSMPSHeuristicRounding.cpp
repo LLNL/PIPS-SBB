@@ -73,13 +73,13 @@ bool BBSMPSHeuristicRounding::runHeuristic(BBSMPSNode* node, denseBAVector &LPRe
 		
 	}
 	//return if success
-	
-	timesSuccessful+=(!otherThanOptimal);
+	bool success= (!otherThanOptimal && rootSolver.getObjective()<objUB);
+	timesSuccessful+=success;
 
-	if (0 == mype && !otherThanOptimal) BBSMPS_ALG_LOG_SEV(info) << "The simple rounding heuristic was successful.";
+	if (0 == mype && success) BBSMPS_ALG_LOG_SEV(info) << "The simple rounding heuristic was successful.";
 		
 
-	return !otherThanOptimal;
+	return success;
 
 }
 
@@ -99,6 +99,6 @@ bool BBSMPSHeuristicRounding::shouldItRun(BBSMPSNode* node, denseBAVector &LPRel
 	}
 	
 	if (nIntVars==0)return false;
-	return ((numberOfFractionalVariables*100/nIntVars)<50);
+	return ((numberOfFractionalVariables*100/nIntVars)<25);
 
 }

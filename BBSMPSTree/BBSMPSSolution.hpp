@@ -17,15 +17,16 @@
 
 #include "BAData.hpp"
 #include "BBSMPSSolver.hpp"
+
 class BBSMPSSolution {
 public:
-	BBSMPSSolution(denseBAVector &_solutionVector, double _objValue);
+	BBSMPSSolution(const denseBAVector &_solutionVector, double _objValue);
 	BBSMPSSolution();
 	~BBSMPSSolution();
-	void setSolutionVector(denseBAVector &_solutionVector);
+	void setSolutionVector(const denseBAVector &_solutionVector);
 	void getSolutionVector(denseBAVector &_solutionVector);
 	void setObjValue(double _objValue);
-	double getObjValue();
+	double getObjValue() const;
 private:
 	denseBAVector solutionVector;
 	double objValue;

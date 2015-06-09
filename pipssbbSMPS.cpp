@@ -56,7 +56,7 @@ int main(int argc, char **argv) {
 
 	bb.loadSimpleHeuristics();
 	bb.loadMIPHeuristics();
-	bb.setNodeLimit(50);
+	bb.setNodeLimit(500);
 	/*
 	// Solve deterministic LP formulation via dual simplex
 	PIPSSInterface solver(input, ctx, PIPSSInterface::useDual);

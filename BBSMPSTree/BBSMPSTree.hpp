@@ -32,7 +32,7 @@
 #include <cassert> // C-style assertions
 #include <cmath> // for floor, ceil, abs functions
 #include <algorithm> // for min
-#include <vector>
+#include <set>
 
 #include "BBSMPSMaxFracBranchingRule.hpp"
 #include "BBSMPSBranchingRuleManager.hpp"
@@ -71,6 +71,10 @@ public:
  }
 };
 
+struct solutionComparison {
+  bool operator() (const BBSMPSSolution& lhs, const BBSMPSSolution& rhs) const
+  {return (lhs.getObjValue()<rhs.getObjValue());}
+};
 enum nodeSelectionRule { BestBound, DepthFirst };
 
 // TODO: Check if PIPS-S always minimizes; otherwise, must change logic.
@@ -125,7 +129,7 @@ private:
   
   double objUB; // best upper bound on objective function value
   denseBAVector ubPrimalSolution; // primal solution for best UB on obj
-  std::vector<BBSMPSSolution> solutionPool;
+  std::multiset<BBSMPSSolution,solutionComparison> solutionPool;
   double objLB; // best lower bound on objective function value
 
   //double intTol; // tolerance on integrality checks

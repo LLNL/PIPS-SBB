@@ -1,6 +1,6 @@
 #include "BBSMPSSolution.hpp"
 
-	BBSMPSSolution::BBSMPSSolution(denseBAVector &_solutionVector, double _objValue):
+	BBSMPSSolution::BBSMPSSolution(const denseBAVector &_solutionVector, double _objValue):
 	objValue(_objValue){
 		BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
     	BAContext &ctx=BBSMPSSolver::instance()->getBAContext();
@@ -19,7 +19,7 @@
 
 	BBSMPSSolution::~BBSMPSSolution(){}
 
-	void BBSMPSSolution::setSolutionVector(denseBAVector &_solutionVector){
+	void BBSMPSSolution::setSolutionVector(const denseBAVector &_solutionVector){
 		solutionVector.copyFrom(_solutionVector);
 	}
 	void BBSMPSSolution::getSolutionVector(denseBAVector &_solutionVector){
@@ -31,6 +31,6 @@
 	void BBSMPSSolution::setObjValue(double _objValue){
 		objValue=_objValue;
 	}
-	double BBSMPSSolution::getObjValue(){
+	double BBSMPSSolution::getObjValue()const{
 		return objValue;
 	}

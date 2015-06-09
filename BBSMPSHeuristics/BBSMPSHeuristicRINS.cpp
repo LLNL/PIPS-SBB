@@ -95,5 +95,31 @@ bool BBSMPSHeuristicRINS::shouldItRun(BBSMPSNode* node, denseBAVector &nodeSolut
 			
 		}
 	}
-	return (numberOfFreeVars<20);
+	BAContext &ctx= BBSMPSSolver::instance()->getBAContext();
+	for (int scen = 0; scen < input.nScenarios(); scen++)
+	{
+		if(ctx.assignedScenario(scen)) {
+			for (int col = 0; col < input.nSecondStageVars(scen); col++)
+			{
+
+				if(input.isSecondStageColInteger(scen,col)){
+					double LPRValue=LPrelaxation.getFirstStageVec()[col];
+					double solValue=nodeSolution.getFirstStageVec()[col];
+					if (LPRValue!=solValue){//Then we fix the variable
+						numberOfFreeVars++;
+					}
+				}
+			}
+		}
+	}
+
+	int minCount;
+	int errorFlag = MPI_Allreduce(&numberOfFreeVars,
+		&minCount,
+		1,
+		MPI_INT, 
+		MPI_MIN,
+		ctx.comm());
+
+	return (minCount<40);
 }
