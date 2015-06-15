@@ -74,9 +74,9 @@ bool BBSMPSHeuristicRENS::runHeuristic(BBSMPSNode* node, denseBAVector &nodeSolu
 	bb.loadSimpleHeuristics();
 	
 	//Add time/node limit
-	//bb.setNodeLimit(2);
-	//Run
 	bb.setNodeLimit(nodeLim);
+	//Run
+
 	bb.branchAndBound();
 
 	//Retrieve best solution and return
@@ -91,7 +91,11 @@ bool BBSMPSHeuristicRENS::runHeuristic(BBSMPSNode* node, denseBAVector &nodeSolu
 
 bool BBSMPSHeuristicRENS::shouldItRun(BBSMPSNode* node, denseBAVector &nodeSolution){
 	int numberOfFreeVars=0;
+	int numberOfIntegerVars=0;
 	SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
+	denseBAVector &lb=BBSMPSSolver::instance()->getOriginalLB();
+	denseBAVector &ub=BBSMPSSolver::instance()->getOriginalUB();
+	
 	for (int col = 0; col < input.nFirstStageVars(); col++)
 	{	
 		if(input.isFirstStageColInteger(col)){
@@ -99,6 +103,7 @@ bool BBSMPSHeuristicRENS::shouldItRun(BBSMPSNode* node, denseBAVector &nodeSolut
 			if (!isIntFeas(solValue,intTol)){//Then we fix the variable
 				numberOfFreeVars++;
 			}
+			if(ub.getFirstStageVec()[col]-lb.getFirstStageVec()[col]>1)numberOfIntegerVars++;
 			
 			
 		}
@@ -116,6 +121,7 @@ bool BBSMPSHeuristicRENS::shouldItRun(BBSMPSNode* node, denseBAVector &nodeSolut
 						numberOfFreeVars;
 					
 					}
+					if(ub.getSecondStageVec(scen)[col]-lb.getSecondStageVec(scen)[col]>1)numberOfIntegerVars++;
 				}
 			}
 		}
@@ -128,6 +134,6 @@ bool BBSMPSHeuristicRENS::shouldItRun(BBSMPSNode* node, denseBAVector &nodeSolut
 		MPI_MIN,
 		ctx.comm());
 
-	return (minCount<40);
+	return (minCount<40 &&numberOfIntegerVars>0);
 
 }

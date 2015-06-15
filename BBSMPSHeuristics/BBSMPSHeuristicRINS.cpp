@@ -24,7 +24,7 @@ bool BBSMPSHeuristicRINS::runHeuristic(BBSMPSNode* node, denseBAVector &nodeSolu
 		if(input.isFirstStageColInteger(col)){
 			double LPRValue=LPrelaxation.getFirstStageVec()[col];
 			double solValue=nodeSolution.getFirstStageVec()[col];
-			if (LPRValue==solValue && isIntFeas(solValue,intTol)){//Then we fix the variable
+			if (fabs(LPRValue-solValue)<intTol&& isIntFeas(solValue,intTol)){//Then we fix the variable
 				bInfos.push_back(BBSMPSBranchingInfo(col,solValue,'E',1));
 				count++;
 			}
@@ -41,7 +41,7 @@ bool BBSMPSHeuristicRINS::runHeuristic(BBSMPSNode* node, denseBAVector &nodeSolu
 				if(input.isSecondStageColInteger(scen,col)){
 					double LPRValue=LPrelaxation.getSecondStageVec(scen)[col];
 					double solValue=nodeSolution.getSecondStageVec(scen)[col];
-					if (LPRValue==solValue && isIntFeas(solValue,intTol)){//Then we fix the variable
+					if (fabs(LPRValue-solValue)<intTol && isIntFeas(solValue,intTol)){//Then we fix the variable
 						bInfos.push_back(BBSMPSBranchingInfo(col,solValue,'E',2,scen));
 						count++;
 					}
@@ -60,12 +60,12 @@ bool BBSMPSHeuristicRINS::runHeuristic(BBSMPSNode* node, denseBAVector &nodeSolu
 	BBSMPSTree bb(rootNode,COIN_DBL_MIN,objUB);
 	bb.setVerbosity(false);
 	//Add simple heuristics to tree
-	//bb.loadSimpleHeuristics();
+	bb.loadSimpleHeuristics();
 	
 	//Add time/node limit
-	//bb.setNodeLimit(2);
-	//Run
 	bb.setNodeLimit(nodeLim);
+	//Run
+
 	bb.branchAndBound();
 
 	//Retrieve best solution and return
@@ -89,7 +89,7 @@ bool BBSMPSHeuristicRINS::shouldItRun(BBSMPSNode* node, denseBAVector &nodeSolut
 		if(input.isFirstStageColInteger(col)){
 			double LPRValue=LPrelaxation.getFirstStageVec()[col];
 			double solValue=nodeSolution.getFirstStageVec()[col];
-			if (LPRValue!=solValue && isIntFeas(solValue,intTol)){//Then we fix the variable
+			if (fabs(LPRValue-solValue)>intTol && isIntFeas(solValue,intTol)){//Then we fix the variable
 				numberOfFreeVars++;
 			}
 			
@@ -105,7 +105,7 @@ bool BBSMPSHeuristicRINS::shouldItRun(BBSMPSNode* node, denseBAVector &nodeSolut
 				if(input.isSecondStageColInteger(scen,col)){
 					double LPRValue=LPrelaxation.getFirstStageVec()[col];
 					double solValue=nodeSolution.getFirstStageVec()[col];
-					if (LPRValue!=solValue){//Then we fix the variable
+					if (fabs(LPRValue-solValue)>intTol && isIntFeas(solValue,intTol)){//Then we fix the variable
 						numberOfFreeVars++;
 					}
 				}
