@@ -257,6 +257,9 @@ public:
     while(true) {
       numPresolves++;
       if(!presolveFirstStage(lb, ub, problemData)) break;
+
+      // If presolve detects infeasibility, return with infeasible status.
+      return;
     }
 
     if (0 == mype) cout << "There were " << numPresolves << " presolves.\n";
@@ -313,6 +316,10 @@ public:
 
       // Compute L_{max}^{i} and L_{min}^{i} for row i using Section 1.3
       // of Savelsbergh.
+      //
+      // Ignoring other constraints, but not bounds:
+      // L_max = maximum possible value of constraint in current row
+      // L_min = minimum possible value of constraint in current row
       double Lmax = 0, Lmin = 0;
       //      assert(!(problemData.Arow->isColOrdered()));
       CoinShallowPackedVector currentRow = problemData.Arow->getVector(row);
@@ -323,17 +330,20 @@ public:
       for (int j = 0; j < currentRowSize; j++) {
 	int col = ptrToIdx[j]; // column index from sparse vector
 	double coeff = ptrToElts[j];
+
+	// Here, floating point comparison tolerance is not necessary;
+	// only the sign matters.
 	if(coeff >= 0) {
 	  Lmax += ub.getFirstStageVec()[col] * coeff;
 	  Lmin += lb.getFirstStageVec()[col] * coeff;
 	}
 	else { // coeff < 0
 	  //
-	  //   Note: In Savelsbergh, Section 1.3, coeff is
-	  //   assumed positive by convention, and then a negative sign
-	  //   is applied to terms with coeff based on the index
-	  //   j being in a positive index set or negative index
-	  //   set. Since coeff is negative in this branch, we
+	  //   Note: In Savelsbergh, Section 1.3, first two equations,
+	  //   coeff is assumed positive by convention, and then a
+	  //   negative sign is applied to terms with coeff based on
+	  //   the index j being in a positive index set or negative
+	  //   index set. Since coeff is negative in this branch, we
 	  //   flip the sign of those terms, so they are now all
 	  //   additions instead of subtractions.
           //
@@ -343,11 +353,11 @@ public:
       }
 
       // Diagnostic code.
-      /*if (0 == row) {
+      if (0 == row) {
 	if (0 == mype) {
 	  cout << "For row 0, Lmin = " << Lmin << " and Lmax = " << Lmax << endl;
 	}
-	}*/
+      }
 
       // Constraints are stored in the form l <= Ax <= u. Let nvars =
       // # of variables (including slacks!). For first stage
@@ -356,7 +366,7 @@ public:
       // of constraints minus 1). The corresponding upper bound on the
       // inequality for first stage constraint row j is stored in
       // ub.getFirstStageVec()[nvars+j].
-      
+
       // Inferred from BAData::BAData(stochasticInput &input, BAContext &ctx)
       // dimsSlacks.numFirstStageVars() ==
       //    (dims.numFirstStageCons() + dims.numFirstStageVars())
@@ -365,47 +375,50 @@ public:
       double rowLB =
 	lb.getFirstStageVec()[dims.numFirstStageVars() + row];
 
-      // Diagnostic code.
-      /*if (0 == row) {
+      // Diagnostic code
+      if (0 == row) {
 	if (0 == mype) {
 	  cout << "For row 0, rowUB = " << rowUB << " and rowLB = " << rowLB << endl;
 	}
-	}*/
+      }
 
-      // Inferred from Koberstein dissertation, equation (2.3) and
-      // "internal model representation" (IMR)
-      //double rowUB =
-      //	-lb.getFirstStageVec()[dimsSlacks.numFirstStageVars() + row];
-      //double rowLB =
-      //	-ub.getFirstStageVec()[dimsSlacks.numFirstStageVars() + row];
-      
-
+      // If row is infeasible, set status to infeasible, then
+      // terminate presolve, noting that MIP has changed.
       bool isRowInfeasible = (Lmin > rowUB) || (Lmax < rowLB);
       if (isRowInfeasible) {
 	setStatusToProvenInfeasible();
+	if (0 == mype) {
+	  cout << "Row " << row << " is infeasible!" << endl;
+	}
 	isMIPchanged = true;
-	break;
+	return isMIPchanged;
       }
 
+      // TODO: Add row redundancy check. Not currently implemented
+      // because it requires row deletion (to be added).
+      /*
       bool isRowRedundant = (Lmax <= rowUB) && (Lmin >= rowLB);
       if (isRowRedundant) {
 	// Do something about redundancy; i.e., mark this row for deletion.
 	// TODO: Uncomment the line below once row deletion implemented in
 	// the body of this if statement.
 	// isMIPchanged = true;
+	if (0 == mype) {
+	    cout << "Row " << row << " is redundant!\n";
+	}
 	break;
       }
+      */
 
       // Bound improvement/fixing binary variables/improving binary coeffs
-      // Ternary statements are used to avoid deeply nesting if statements
       for (int j = 0; j < currentRowSize; j++) {
-	int col = ptrToIdx[j];
-	bool isBinary = input.isFirstStageColBinary(col);
+	const int col = ptrToIdx[j];
+	const bool isBinary = input.isFirstStageColBinary(col);
 	double coeff = ptrToElts[j];
 	bool isCoeffPositive = (coeff > 0); // Note: only nonzero coeffs stored
 	bool isCoeffNegative = (coeff < 0);
-	double colUB = ub.getFirstStageVec()[col];
-	double colLB = lb.getFirstStageVec()[col];
+	double &colUB = ub.getFirstStageVec()[col];
+	double &colLB = lb.getFirstStageVec()[col];
 
 	// Bound improvement setup steps; note: for valid lower bound, signs
 	// of coefficient terms are flipped because Savelsbergh assumes all
@@ -414,75 +427,96 @@ public:
 	if (isBinary) {
 	// Use abs value of coefficient because Savelsbergh assumes all
 	// coefficients positive.
+
+	  // Savelsbergh, Section 1.3: Fixing of variables
 	  bool isBinaryFixableLmin = ((Lmin + abs(coeff)) > rowUB);
+	  // Translation of Savelsbergh 1.3: for lower bound
+	  // constraints, flip "min" to "max", row upper bound to row
+	  // lower bound, and adding abs val of coefficient to
+	  // subtracting abs val of coefficient.
 	  bool isBinaryFixableLmax = ((Lmax - abs(coeff)) < rowLB);
-	  bool isBinaryFixable = isBinaryFixableLmin || isBinaryFixableLmax;  
-	  
+
+	  // If either binary fixing condition is true, then binary variable is fixable.
+	  bool isBinaryFixable = isBinaryFixableLmin || isBinaryFixableLmax;
+
 	  if(isBinaryFixable) isMIPchanged = true;
 
+	  // Four cases:
+	  // Cases 1 & 2: binary variable fixable based on Lmin
+	  // and row upper bound
 	  if (isBinaryFixableLmin) {
 	    if (0 == mype) cout << "Fixing binary variable via Lmin!" << endl;
+	    // Case 1: if coefficient is positive, binary variable fixed to zero
 	    if (isCoeffPositive) {
 	      if (0 == mype) cout << "Fix 1st stage bin var " << col << " to 0" << endl;
-	      ub.getFirstStageVec()[col] = 0.0;	      
+	      colUB = 0.0;
 	    }
+	    // Case 2: if coefficient is negative, binary variable fixed to one
 	    if (isCoeffNegative) {
 	      if (0 == mype) cout << "Fix 1st stage bin var " << col << " to 1" << endl;
-	      lb.getFirstStageVec()[col] = 1.0;
+	      colLB = 1.0;
 	    }
 	  }
+	  // Cases 3 & 4: binary variable is fixable based on Lmax and
+	  // row lower bound
 	  if (isBinaryFixableLmax) {
 	    if (0 == mype) cout << "Fixing binary variable via Lmax!" << endl;
+	    // Case 3: if coefficient is positive, binary variable fixed to one
 	    if (isCoeffPositive) {
 	      if (0 == mype) cout << "Fix 1st stage bin var " << col << " to 1" << endl;
-	      lb.getFirstStageVec()[col] = 1.0;
+	      colLB = 1.0;
 	    }
+	    // Case 4: if coefficient is negative, binary variable fixed to zero
 	    if (isCoeffNegative) {
 	      if (0 == mype) cout << "Fix 1st stage bin var " << col << " to 0" << endl;
-	      ub.getFirstStageVec()[col] = 0.0;
+	      colUB = 0.0;
 	    }
 	  }
-	  
+
 	}
 	else {
 	  // Lmin-derived lower bounds -- in Savelsberg, Section 1.1.
-	  double LminUB = (rowUB - (Lmin - coeff*colLB))/coeff;
+	  // These expressions both come straight from Savelsbergh's summary
+	  // in Section 1.3, under "Improvement of bounds".
 	  double LminLB = (rowUB - (Lmin - coeff*colUB))/coeff;
-	  
+	  double LminUB = (rowUB - (Lmin - coeff*colLB))/coeff;
 	  if (isCoeffPositive) {
 	    if (LminUB < colUB) {
 	      if (0 == mype) cout << "Tightening UB on 1st stage col " << col << " via Lmin!\n";
-	      ub.getFirstStageVec()[col] = LminUB;
+	      colUB = LminUB;
 	      isMIPchanged = true;
 	    }
 	  }
 	  else {
 	    if (LminLB > colLB) {
 	      if (0 == mype) cout << "Tightening LB on 1st stage col " << col << " via Lmin!\n";
-	      lb.getFirstStageVec()[col] = LminLB;
+	      colLB = LminLB;
 	      isMIPchanged = true;
 	    }
 	  }
-	  
+
 	  // Lmax-derived lower bounds -- by analogy to Savelsberg, Section 1.1
-	  double LmaxUB = (rowLB - (Lmax - coeff*lb.getFirstStageVec()[col]))/coeff;
-	  double LmaxLB = (rowLB - (Lmax - coeff*ub.getFirstStageVec()[col]))/coeff;
+	  // These expressions both come from Savelsbergh's summary
+	  // in Section 1.3, under "Improvement of bounds"; the modifications
+	  // are to flip lower bounds to upper bounds and Lmin to Lmax.
+	  double LmaxUB = (rowLB - (Lmax - coeff*colLB))/coeff;
+	  double LmaxLB = (rowLB - (Lmax - coeff*colUB))/coeff;
 	  if (isCoeffPositive) {
-	    if (LmaxUB < ub.getFirstStageVec()[col]) {
+	    if (LmaxUB < colUB) {
 	      if (0 == mype) cout << "Tightening UB on 1st stage col " << col << " via Lmax!\n";
-	      ub.getFirstStageVec()[col] = LmaxUB;
+	      colUB = LmaxUB;
 	      isMIPchanged = true;
 	    }
 	  }
 	  else {
-	    if (LmaxLB > lb.getFirstStageVec()[col]) {
+	    if (LmaxLB > colLB) {
 	      if (0 == mype) cout << "Tightening LB on 1st stage col " << col << " via Lmax!\n";
-	      lb.getFirstStageVec()[col] = LmaxLB;
+	      colLB = LmaxLB;
 	      isMIPchanged = true;
 	    }
 	  }
 	}
-  
+
 	/*
 	// Derived by analogy to Savelsbergh Sections 1.2, 1.3
 	// Note: This code cannot currently work as written, because
@@ -497,29 +531,56 @@ public:
 	  // Maximum coefficient increases/decreases by coefficient
 	  // improvement subsection of Savelsbergh, Section 1.2.
 	  // Note: derived additional relationships for double-sided
-	  // inequalities.
+	  // inequalities. The basic idea is to see how much each side
+	  // of the inequality could possibly be modified after
+	  // looking at the max & min possible values for inequality.
+	  // The minimum of the possible changes will be used to compute
+	  // changes in bounds and coefficients.
 	  double coeffLBchg = max(rowUB - rowMax, 0.0);
 	  double coeffUBchg = max(rowMin - rowLB, 0.0);
 	  double coeffChg = min(coeffLBchg, coeffUBchg);
-	  // bool isCoeffImprovable = (coeffChg > 0.0);
-	  
+	  bool isCoeffImprovable = (coeffChg > 0.0);
+
 	  // Note: In many cases, if the coefficients cannot be improved
 	  // (i.e., coeffChg == 0.0), the code below will do unnecessary
 	  // assignments. One later optimization could be to get rid of
 	  // these assignments, if they require a significant amount of
 	  // time.
-	  if (isCoeffPositive) {
+
+	  // With two-sided inequalities, it is *ALWAYS* possible to
+	  // improve the coefficient and one side of the bounds (upper
+	  // or lower).  (Compare to the one-sided inequality case,
+	  // where it is always possible to improve the coefficient,
+	  // but not necessarily the bound, which can only be improved
+	  // for binary variables with positive coefficients.)  The
+	  // idea is to consider two MIPs at once, and then show that
+	  // in the positive coefficient case, the minimum of the
+	  // possible changes can be applied to reduce the row upper
+	  // bound and the coefficient. In the negative coefficient
+	  // case, the minimum of the possible changes can be applied
+	  // to increase the row lower bound and the
+	  // coefficient. Here, the reason that the negative
+	  // coefficient is an increase and not a decrease is because
+	  // Savelsbergh forces coefficients to be positive in his
+	  // derivations (even the "negative" ones; he implicitly
+	  // takes an absolute value); flipping signs changes the
+	  // subtractions to additions.
+	  // TODO: May need to update isCoeffPositive & isCoeffNegative
+	  // in response to updates of coeff. Possibly worth putting into
+	  // its own self-updating data structure?
+
+	  if (isCoeffImprovable && isCoeffPositive) {
 	    ub.getFirstStageVec()[dimsSlacks.numFirstStageVars() + row] += -coeffChg;
-	    double newCoeff = coeff - coeffChg;
+	    coeff -= coeffChg;
 	    problemData.Arow->modifyCoefficient(row, col, newCoeff);
 	    // PIPS-S uses the idiom:
 	    // Acol->reverseOrderedCopyOf(*Arow);
 	    // This idiom seems wasteful here; a possibly better one could be:
 	    problemData.Acol->modifyCoefficient(row, col, newCoeff);
 	  }
-	  else {
+	  else if (isCoeffImprovable && isCoeffNegative) {
 	    lb.getFirstStageVec()[dimsSlacks.numFirstStageVars() + row] += coeffChg;
-	    double newCoeff = coeff + coeffChg;
+	    double coeff += coeffChg;
 	    problemData.Arow->modifyCoefficient(row, col, newCoeff);
 	    // PIPS-S uses the idiom:
 	    // Acol->reverseOrderedCopyOf(*Arow);
@@ -531,7 +592,7 @@ public:
 
       }
     }
-    
+
     return isMIPchanged;
   }
 
@@ -1064,8 +1125,13 @@ int main(int argc, char **argv) {
 	}
 	*/
 
-	if (0 == mype) cout << "Calling branch-and-bound!\n";
-	bb.branchAndBound();
+	if (bb.status != ProvenInfeasible) {
+	  if (0 == mype) cout << "Calling branch-and-bound!\n";
+	  bb.branchAndBound();
+	}
+	else { // bb.status == ProvenInfeasible
+	  if (0 == mype) cout << "Problem is infeasible!\n";
+	}
 
 
 	// Clean up MPI data structures
