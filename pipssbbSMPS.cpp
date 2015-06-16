@@ -264,9 +264,6 @@ public:
 
     if (0 == mype) cout << "There were " << numPresolves << " presolves.\n";
 
-    // Solve root node.
-    rootSolver.go();
-
     // Allocate current best primal solution; normally this primal solution
     // is for the upper bound, but here, we have only the solution to an
     // LP relaxation, which may not be primal feasible. We don't check
@@ -274,22 +271,16 @@ public:
     //if (0 == mype) cout << "Allocating primal solution!" << endl;
     ubPrimalSolution.allocate(dimsSlacks, ctx, PrimalVector);
     //if (0 == mype) cout << "Getting primal solution!" << endl;
-    ubPrimalSolution.copyFrom(rootSolver.getPrimalSolution());
+    //ubPrimalSolution.copyFrom(rootSolver.getPrimalSolution());
     //if (0 == mype) cout << "MIP Primal solution updated!" << endl;
 
-    // Update state of primal variables + slacks; slacks must be included
-    // because these are used in a reformulation of the problem to standard
-    // form: Ax + s = b, s >= 0.
+    // State of primal variables + slacks for warm starts; slacks must
+    // be included because these are used in a reformulation of the
+    // problem to standard form
     BAFlagVector<variableState> states(dimsSlacks, ctx, PrimalVector);
-    rootSolver.getStates(states);
 
-    // Update global lower bound; really need to check feasibility, etc.
-    // here, but I'm going to move this code to the B&B tree.
-    double lpObj = rootSolver.getObjective();
-    if ((lpObj - compTol) >= objLB) objLB = lpObj;
-
+    // Push root node onto B&B tree/heap.
     BranchAndBoundNode rootNode(objLB, lb, ub, states);
-
     //if (0 == mype) cout << "Pushing root node onto B&B tree!\n";
     heap.push(rootNode);
     //if (0 == mype) cout << "Exiting B&B constructor!\n";
@@ -894,8 +885,13 @@ public:
 
       /* Set information on basic/nonbasic variables for warm starting */
       if (0 == mype) cout << "Setting warm start information!\n";
-      rootSolver.setStates(currentNode.parentStates);
-      rootSolver.commitStates();
+      // Only set warm start states if not root node;
+      // trying to set the warm start states for the root node without
+      // a known basic feasible solution will crash PIPS-S.
+      if (nodeNumber > 1) {
+	rootSolver.setStates(currentNode.parentStates);
+	rootSolver.commitStates();
+      }
 
       /* Solve LP defined by current node*/
       if (0 == mype) cout << "Solving LP subproblem!\n";
