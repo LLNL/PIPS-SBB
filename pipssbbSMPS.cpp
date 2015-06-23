@@ -174,6 +174,9 @@ public:
   double lpDualTol; // tolerance on LP dual problems
   double compTol; // tolerance on LP objective function comparisons
 
+  // TODO: Move this field into something like BAMIPData, etc.
+  BAFlagVector<bool> isColBinary; // stores whether a given variable is binary
+
   // max-heap data structure with nodes
   // TODO: Refactor to vector<BranchAndBound> & replace w/ make_heap, push_heap, pop_heap
   //std::priority_queue<BranchAndBoundNode, std::vector<BranchAndBoundNode>, std::less<BranchAndBoundNode> > heap; // max-heap
@@ -227,6 +230,20 @@ public:
 
     rootSolver.setPrimalTolerance(lpPrimalTol);
     rootSolver.setDualTolerance(lpDualTol);
+
+    // Prior to presolve, determine if a given variable & scenario is binary.
+    isColBinary.allocate(dims, ctx, PrimalVector);
+    for (int col = 0; col < input.nFirstStageVars(); col++) {
+      isColBinary.getFirstStageVec()[col] = input.isFirstStageColInteger(col);
+    }
+    for (int scen = 0; scen < input.nScenarios(); scen++) {
+      if(ctx.assignedScenario(scen)) {
+	for (int col = 0; col < input.nSecondStageVars(scen); col++) {
+	  isColBinary.getSecondStageVec(scen)[col] =
+	    input.isSecondStageColInteger(scen,col);
+	}
+      }
+    }
 
     // TODO: Replace with real presolve.
     // For now, "cheat" by solving root LP before populating root node.
@@ -290,9 +307,9 @@ public:
   // Default destructor
   ~BranchAndBoundTree() {}
 
-  void incrementLmaxLminByRow(const denseVector& colLB,
-			      const denseVector& colUB,
-			      const CoinShallowPackedVector& currentRow,
+  void incrementLmaxLminByRow(const denseVector &colLB,
+			      const denseVector &colUB,
+			      const CoinShallowPackedVector &currentRow,
 			      double &Lmax,
 			      double &Lmin) {
     const double *ptrToElts = currentRow.getElements();
@@ -322,6 +339,132 @@ public:
 	  Lmin += colUB[col] * coeff;
 	}
     }
+  }
+
+  // NOTE: To avoid name clashes, replace "col" by "var" where appropriate,
+  // since column and primal variable are synonyms.
+  // TODO: Figure out way to keep # of args to 7 or less.
+  bool tightenColBoundsByRow(denseVector &colLB,
+			     denseVector &colUB,
+			     const denseFlagVector<bool> &isVarBinary,
+			     const CoinShallowPackedVector &currentRow,
+			     const double &Lmax,
+			     const double &Lmin,
+			     const double &rowLB,
+			     const double &rowUB) {
+    bool isMIPchanged = false;
+    const double *ptrToElts = currentRow.getElements();
+    const int *ptrToIdx = currentRow.getIndices();
+    int currentRowSize = currentRow.getNumElements();
+
+    // Bound improvement/fixing binary variables/improving binary coeffs
+    for (int j = 0; j < currentRowSize; j++) {
+      const int col = ptrToIdx[j];
+      const bool isBinary = isVarBinary[col];
+      double coeff = ptrToElts[j];
+      bool isCoeffPositive = (coeff > 0); // Note: only nonzero coeffs stored
+      bool isCoeffNegative = (coeff < 0);
+      double &varUB = colUB[col];
+      double &varLB = colLB[col];
+
+      // Bound improvement setup steps; note: for valid lower bound, signs
+      // of coefficient terms are flipped because Savelsbergh assumes all
+      // coefficients are positive in his paper.
+
+      if (isBinary) { // binary fixing
+	// Use abs value of coefficient because Savelsbergh assumes all
+	// coefficients positive.
+
+	// Savelsbergh, Section 1.3: Fixing of variables
+	bool isBinaryFixableLmin = ((Lmin + abs(coeff)) > rowUB);
+	// Translation of Savelsbergh 1.3: for lower bound
+	// constraints, flip "min" to "max", row upper bound to row
+	// lower bound, and adding abs val of coefficient to
+	// subtracting abs val of coefficient.
+	bool isBinaryFixableLmax = ((Lmax - abs(coeff)) < rowLB);
+
+	// If either binary fixing condition is true, then binary variable is fixable.
+	bool isBinaryFixable = isBinaryFixableLmin || isBinaryFixableLmax;
+
+	if(isBinaryFixable) isMIPchanged = true;
+
+	// Four cases:
+	// Cases 1 & 2: binary variable fixable based on Lmin
+	// and row upper bound
+	if (isBinaryFixableLmin) {
+	  if (0 == mype) cout << "Fixing binary variable via Lmin!" << endl;
+	  // Case 1: if coefficient is positive, binary variable fixed to zero
+	  if (isCoeffPositive) {
+	    if (0 == mype) cout << "Fix 1st stage bin var " << col << " to 0" << endl;
+	    varUB = 0.0;
+	  }
+	  // Case 2: if coefficient is negative, binary variable fixed to one
+	  if (isCoeffNegative) {
+	    if (0 == mype) cout << "Fix 1st stage bin var " << col << " to 1" << endl;
+	    varLB = 1.0;
+	  }
+	}
+	// Cases 3 & 4: binary variable is fixable based on Lmax and
+	// row lower bound
+	if (isBinaryFixableLmax) {
+	  if (0 == mype) cout << "Fixing binary variable via Lmax!" << endl;
+	  // Case 3: if coefficient is positive, binary variable fixed to one
+	  if (isCoeffPositive) {
+	    if (0 == mype) cout << "Fix 1st stage bin var " << col << " to 1" << endl;
+	    varLB = 1.0;
+	  }
+	  // Case 4: if coefficient is negative, binary variable fixed to zero
+	  if (isCoeffNegative) {
+	    if (0 == mype) cout << "Fix 1st stage bin var " << col << " to 0" << endl;
+	    varUB = 0.0;
+	  }
+	}
+
+      }
+      else { // continuous variable fixing
+	// Lmin-derived lower bounds -- in Savelsberg, Section 1.1.
+	// These expressions both come straight from Savelsbergh's summary
+	// in Section 1.3, under "Improvement of bounds".
+	double LminLB = (rowUB - (Lmin - coeff*varUB))/coeff;
+	double LminUB = (rowUB - (Lmin - coeff*varLB))/coeff;
+	if (isCoeffPositive) {
+	  if (LminUB < varUB) {
+	    if (0 == mype) cout << "Tightening UB on 1st stage col " << col << " via Lmin!\n";
+	    varUB = LminUB;
+	    isMIPchanged = true;
+	  }
+	}
+	else {
+	  if (LminLB > varLB) {
+	    if (0 == mype) cout << "Tightening LB on 1st stage col " << col << " via Lmin!\n";
+	    varLB = LminLB;
+	    isMIPchanged = true;
+	  }
+	}
+
+	// Lmax-derived lower bounds -- by analogy to Savelsberg, Section 1.1
+	// These expressions both come from Savelsbergh's summary
+	// in Section 1.3, under "Improvement of bounds"; the modifications
+	// are to flip lower bounds to upper bounds and Lmin to Lmax.
+	double LmaxUB = (rowLB - (Lmax - coeff*varLB))/coeff;
+	double LmaxLB = (rowLB - (Lmax - coeff*varUB))/coeff;
+	if (isCoeffPositive) {
+	  if (LmaxUB < varUB) {
+	    if (0 == mype) cout << "Tightening UB on 1st stage col " << col << " via Lmax!\n";
+	    varUB = LmaxUB;
+	    isMIPchanged = true;
+	  }
+	}
+	else {
+	  if (LmaxLB > varLB) {
+	    if (0 == mype) cout << "Tightening LB on 1st stage col " << col << " via Lmax!\n";
+	    varLB = LmaxLB;
+	    isMIPchanged = true;
+	  }
+	}
+      }
+    }
+    return isMIPchanged;
   }
 
   // First stage presolve
@@ -416,113 +559,17 @@ public:
       const int *ptrToIdx = currentRow.getIndices();
       int currentRowSize = currentRow.getNumElements();
 
+      isMIPchanged = tightenColBoundsByRow(lb.getFirstStageVec(),
+					   ub.getFirstStageVec(),
+					   isColBinary.getFirstStageVec(),
+					   currentRow,
+					   Lmax,
+					   Lmin,
+					   rowLB,
+					   rowUB) || isMIPchanged;
+
       // Bound improvement/fixing binary variables/improving binary coeffs
       for (int j = 0; j < currentRowSize; j++) {
-	const int col = ptrToIdx[j];
-	const bool isBinary = input.isFirstStageColBinary(col);
-	double coeff = ptrToElts[j];
-	bool isCoeffPositive = (coeff > 0); // Note: only nonzero coeffs stored
-	bool isCoeffNegative = (coeff < 0);
-	double &colUB = ub.getFirstStageVec()[col];
-	double &colLB = lb.getFirstStageVec()[col];
-
-	// Bound improvement setup steps; note: for valid lower bound, signs
-	// of coefficient terms are flipped because Savelsbergh assumes all
-	// coefficients are positive in his paper.
-
-	if (isBinary) {
-	// Use abs value of coefficient because Savelsbergh assumes all
-	// coefficients positive.
-
-	  // Savelsbergh, Section 1.3: Fixing of variables
-	  bool isBinaryFixableLmin = ((Lmin + abs(coeff)) > rowUB);
-	  // Translation of Savelsbergh 1.3: for lower bound
-	  // constraints, flip "min" to "max", row upper bound to row
-	  // lower bound, and adding abs val of coefficient to
-	  // subtracting abs val of coefficient.
-	  bool isBinaryFixableLmax = ((Lmax - abs(coeff)) < rowLB);
-
-	  // If either binary fixing condition is true, then binary variable is fixable.
-	  bool isBinaryFixable = isBinaryFixableLmin || isBinaryFixableLmax;
-
-	  if(isBinaryFixable) isMIPchanged = true;
-
-	  // Four cases:
-	  // Cases 1 & 2: binary variable fixable based on Lmin
-	  // and row upper bound
-	  if (isBinaryFixableLmin) {
-	    if (0 == mype) cout << "Fixing binary variable via Lmin!" << endl;
-	    // Case 1: if coefficient is positive, binary variable fixed to zero
-	    if (isCoeffPositive) {
-	      if (0 == mype) cout << "Fix 1st stage bin var " << col << " to 0" << endl;
-	      colUB = 0.0;
-	    }
-	    // Case 2: if coefficient is negative, binary variable fixed to one
-	    if (isCoeffNegative) {
-	      if (0 == mype) cout << "Fix 1st stage bin var " << col << " to 1" << endl;
-	      colLB = 1.0;
-	    }
-	  }
-	  // Cases 3 & 4: binary variable is fixable based on Lmax and
-	  // row lower bound
-	  if (isBinaryFixableLmax) {
-	    if (0 == mype) cout << "Fixing binary variable via Lmax!" << endl;
-	    // Case 3: if coefficient is positive, binary variable fixed to one
-	    if (isCoeffPositive) {
-	      if (0 == mype) cout << "Fix 1st stage bin var " << col << " to 1" << endl;
-	      colLB = 1.0;
-	    }
-	    // Case 4: if coefficient is negative, binary variable fixed to zero
-	    if (isCoeffNegative) {
-	      if (0 == mype) cout << "Fix 1st stage bin var " << col << " to 0" << endl;
-	      colUB = 0.0;
-	    }
-	  }
-
-	}
-	else {
-	  // Lmin-derived lower bounds -- in Savelsberg, Section 1.1.
-	  // These expressions both come straight from Savelsbergh's summary
-	  // in Section 1.3, under "Improvement of bounds".
-	  double LminLB = (rowUB - (Lmin - coeff*colUB))/coeff;
-	  double LminUB = (rowUB - (Lmin - coeff*colLB))/coeff;
-	  if (isCoeffPositive) {
-	    if (LminUB < colUB) {
-	      if (0 == mype) cout << "Tightening UB on 1st stage col " << col << " via Lmin!\n";
-	      colUB = LminUB;
-	      isMIPchanged = true;
-	    }
-	  }
-	  else {
-	    if (LminLB > colLB) {
-	      if (0 == mype) cout << "Tightening LB on 1st stage col " << col << " via Lmin!\n";
-	      colLB = LminLB;
-	      isMIPchanged = true;
-	    }
-	  }
-
-	  // Lmax-derived lower bounds -- by analogy to Savelsberg, Section 1.1
-	  // These expressions both come from Savelsbergh's summary
-	  // in Section 1.3, under "Improvement of bounds"; the modifications
-	  // are to flip lower bounds to upper bounds and Lmin to Lmax.
-	  double LmaxUB = (rowLB - (Lmax - coeff*colLB))/coeff;
-	  double LmaxLB = (rowLB - (Lmax - coeff*colUB))/coeff;
-	  if (isCoeffPositive) {
-	    if (LmaxUB < colUB) {
-	      if (0 == mype) cout << "Tightening UB on 1st stage col " << col << " via Lmax!\n";
-	      colUB = LmaxUB;
-	      isMIPchanged = true;
-	    }
-	  }
-	  else {
-	    if (LmaxLB > colLB) {
-	      if (0 == mype) cout << "Tightening LB on 1st stage col " << col << " via Lmax!\n";
-	      colLB = LmaxLB;
-	      isMIPchanged = true;
-	    }
-	  }
-	}
-
 	/*
 	// Derived by analogy to Savelsbergh Sections 1.2, 1.3
 	// Note: This code cannot currently work as written, because
