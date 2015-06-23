@@ -290,6 +290,40 @@ public:
   // Default destructor
   ~BranchAndBoundTree() {}
 
+  void incrementLmaxLminByRow(const denseVector& colLB,
+			      const denseVector& colUB,
+			      const CoinShallowPackedVector& currentRow,
+			      double &Lmax,
+			      double &Lmin) {
+    const double *ptrToElts = currentRow.getElements();
+    const int *ptrToIdx = currentRow.getIndices();
+    int currentRowSize = currentRow.getNumElements();
+    for (int j = 0; j < currentRowSize; j++) {
+      int col = ptrToIdx[j]; // column index from sparse vector
+      double coeff = ptrToElts[j];
+
+      // Here, floating point comparison tolerance is not necessary;
+      // only the sign matters.
+	if(coeff >= 0) {
+	  Lmax += colUB[col] * coeff;
+	  Lmin += colLB[col] * coeff;
+	}
+	else { // coeff < 0
+	  //
+	  //   Note: In Savelsbergh, Section 1.3, first two equations,
+	  //   coeff is assumed positive by convention, and then a
+	  //   negative sign is applied to terms with coeff based on
+	  //   the index j being in a positive index set or negative
+	  //   index set. Since coeff is negative in this branch, we
+	  //   flip the sign of those terms, so they are now all
+	  //   additions instead of subtractions.
+          //
+	  Lmax += colLB[col] * coeff;
+	  Lmin += colUB[col] * coeff;
+	}
+    }
+  }
+
   // First stage presolve
   bool presolveFirstStage(denseBAVector &lb, denseBAVector &ub, BAData& problemData) {
     bool isMIPchanged = false;
@@ -314,34 +348,11 @@ public:
       double Lmax = 0, Lmin = 0;
       //      assert(!(problemData.Arow->isColOrdered()));
       CoinShallowPackedVector currentRow = problemData.Arow->getVector(row);
-      //CoinShallowPackedVector currentRow = problemData.Acol->getVector(row);
-      const double *ptrToElts = currentRow.getElements();
-      const int *ptrToIdx = currentRow.getIndices();
-      int currentRowSize = currentRow.getNumElements();
-      for (int j = 0; j < currentRowSize; j++) {
-	int col = ptrToIdx[j]; // column index from sparse vector
-	double coeff = ptrToElts[j];
-
-	// Here, floating point comparison tolerance is not necessary;
-	// only the sign matters.
-	if(coeff >= 0) {
-	  Lmax += ub.getFirstStageVec()[col] * coeff;
-	  Lmin += lb.getFirstStageVec()[col] * coeff;
-	}
-	else { // coeff < 0
-	  //
-	  //   Note: In Savelsbergh, Section 1.3, first two equations,
-	  //   coeff is assumed positive by convention, and then a
-	  //   negative sign is applied to terms with coeff based on
-	  //   the index j being in a positive index set or negative
-	  //   index set. Since coeff is negative in this branch, we
-	  //   flip the sign of those terms, so they are now all
-	  //   additions instead of subtractions.
-          //
-	  Lmax += lb.getFirstStageVec()[col] * coeff;
-	  Lmin += ub.getFirstStageVec()[col] * coeff;
-	}
-      }
+      incrementLmaxLminByRow(lb.getFirstStageVec(),
+			     ub.getFirstStageVec(),
+			     currentRow,
+			     Lmax,
+			     Lmin);
 
       // Diagnostic code.
       if (0 == row) {
@@ -400,6 +411,10 @@ public:
 	break;
       }
       */
+
+      const double *ptrToElts = currentRow.getElements();
+      const int *ptrToIdx = currentRow.getIndices();
+      int currentRowSize = currentRow.getNumElements();
 
       // Bound improvement/fixing binary variables/improving binary coeffs
       for (int j = 0; j < currentRowSize; j++) {
