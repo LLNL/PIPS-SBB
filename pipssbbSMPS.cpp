@@ -273,10 +273,28 @@ public:
     unsigned int numPresolves = 0;
     while(true) {
       numPresolves++;
-      if(!presolveFirstStage(lb, ub, problemData)) break;
+      bool isMIPchanged = false;
+      isMIPchanged = presolveFirstStage(lb, ub, problemData) || isMIPchanged;
+
+      /*
+      for (int scen = 0; scen < input.nScenarios(); scen++) {
+	if(ctx.assignedScenario(scen)) {
+	  isMIPchanged = presolveSecondStage(lb, ub, problemData, scen) ||
+	    isMIPchanged;
+	}
+      }
+      */
+
+      // Synchronize first stage information and isMIPchanged via reductions.
+      presolveSyncFirstStage(isMIPchanged, lb, ub);
+
+      // Stop presolve when presolve operations no longer change MIP,
+      // or MIP infeasible.
+      bool isInfeasible = (ProvenInfeasible == status);
+      if (!isMIPchanged || isInfeasible) break;
 
       // If presolve detects infeasibility, return with infeasible status.
-      return;
+      //return;
     }
 
     if (0 == mype) cout << "There were " << numPresolves << " presolves.\n";
@@ -678,6 +696,168 @@ public:
     return isMIPchanged;
   }
 
+
+  // Second stage presolve
+  bool presolveSecondStage(denseBAVector &lb,
+			   denseBAVector &ub,
+			   BAData& problemData,
+			   int scen) {
+    bool isMIPchanged = false;
+
+    // Only makes sense when called by process that owns scenario scen.
+    // NOTE: Probably could replace hard failure with returning
+    // isMIPchanged = false with the current logic used for presolves,
+    // but this situation could change as the architecture of presolves
+    // changes.
+    assert(ctx.assignedScenario(scen));
+
+    // Begin second stage presolve
+    for (int row = 0; row < dims.numSecondStageCons(scen); row++) {
+      // Nomenclature taken from: "Preprocessing and Probing
+      // Techniques for Mixed Integer Programming Problems",
+      // M. W. P. Savelsbergh, ORSA Journal on Computing,
+      // Vol. 6, No. 4, Fall 1994, 445-453.
+
+      // Compute L_{max}^{i} and L_{min}^{i} for row i using Section 1.3
+      // of Savelsbergh.
+      //
+      // Ignoring other constraints, but not bounds:
+      // L_max = maximum possible value of constraint in current row
+      // L_min = minimum possible value of constraint in current row
+      double Lmax = 0, Lmin = 0;
+      CoinShallowPackedVector currentTrow, currentWrow;
+      currentTrow = problemData.Trow[scen]->getVector(row);
+      currentWrow = problemData.Wrow[scen]->getVector(row);
+
+      // Increment Lmax & Lmin using row of T matrix
+      incrementLmaxLminByRow(lb.getFirstStageVec(),
+			     ub.getFirstStageVec(),
+			     currentTrow,
+			     Lmax,
+			     Lmin);
+
+      // Increment Lmax & Lmin using row of W matrix
+      incrementLmaxLminByRow(lb.getSecondStageVec(scen),
+			     ub.getSecondStageVec(scen),
+			     currentWrow,
+			     Lmax,
+			     Lmin);
+
+      // Constraints are stored in the form l <= Ax <= u. Let nvars =
+      // # of variables (including slacks!). For first stage
+      // constraint row j, the lower bound on the inequality is stored
+      // in lb.getFirstStageVec()[nvars+j], where j goes from 0 to (#
+      // of constraints minus 1). The corresponding upper bound on the
+      // inequality for first stage constraint row j is stored in
+      // ub.getFirstStageVec()[nvars+j].
+
+      // Inferred from BAData::BAData(stochasticInput &input, BAContext &ctx)
+      // dimsSlacks.numFirstStageVars() ==
+      //    (dims.numFirstStageCons() + dims.numFirstStageVars())
+      double rowUB =
+	ub.getSecondStageVec(scen)[dims.numSecondStageVars(scen) + row];
+      double rowLB =
+	lb.getSecondStageVec(scen)[dims.numSecondStageVars(scen) + row];
+
+      // If row is infeasible, set status to infeasible, then
+      // terminate presolve, noting that MIP has changed.
+      bool isRowInfeasible = (Lmin > rowUB) || (Lmax < rowLB);
+      if (isRowInfeasible) {
+	setStatusToProvenInfeasible();
+	if (0 == mype) {
+	  cout << "Row " << row
+	       << "in scenario" << scen << " is infeasible!" << endl;
+	}
+	isMIPchanged = true;
+	return isMIPchanged;
+      }
+
+      // TODO: Add row redundancy check. Not currently implemented
+      // because it requires row deletion (to be added).
+      /*
+      bool isRowRedundant = (Lmax <= rowUB) && (Lmin >= rowLB);
+      if (isRowRedundant) {
+	// Do something about redundancy; i.e., mark this row for deletion.
+	// TODO: Uncomment the line below once row deletion implemented in
+	// the body of this if statement.
+	// isMIPchanged = true;
+	if (0 == mype) {
+	    cout << "Row " << row << " is redundant!\n";
+	}
+	break;
+      }
+      */
+
+      // Tighten first stage column bounds using row of T matrix
+      isMIPchanged = tightenColBoundsByRow(lb.getFirstStageVec(),
+					   ub.getFirstStageVec(),
+					   isColBinary.getFirstStageVec(),
+					   currentTrow,
+					   Lmax,
+					   Lmin,
+					   rowLB,
+					   rowUB) || isMIPchanged;
+
+      // Tighten second stage column bounds using row of W matrix
+      isMIPchanged = tightenColBoundsByRow(lb.getSecondStageVec(scen),
+					   ub.getSecondStageVec(scen),
+					   isColBinary.getSecondStageVec(scen),
+					   currentWrow,
+					   Lmax,
+					   Lmin,
+					   rowLB,
+					   rowUB) || isMIPchanged;
+
+    }
+
+    return isMIPchanged;
+  }
+
+  void presolveSyncFirstStage(bool &isMIPchanged,
+			      denseBAVector& lb,
+			      denseBAVector& ub) {
+    // TODO: Make the synchronization step more efficient by coalescing
+    // communication even more. For now, shoehorn in a less performant
+    // implementation as a proof-of-concept. This implementation is the
+    // fastest we can do with off-the-shelf reductions; a more performant
+    // implementation might implement a custom reduction operation along
+    // with a custom buffer used for packing data.
+    // TODO: Replace MPI_INT with MPI_LOGICAL all over the place.
+
+    // Min-reduce first stage upper bounds over all ranks
+    int errorFlag = MPI_Allreduce(MPI_IN_PLACE,
+				  ub.getFirstStageVec().getPointer(),
+				  dimsSlacks.numFirstStageVars(),
+				  MPI_DOUBLE,
+				  MPI_MIN,
+				  ctx.comm());
+
+    // Max-reduce first stage lower bounds over all ranks
+    errorFlag = MPI_Allreduce(MPI_IN_PLACE,
+				  lb.getFirstStageVec().getPointer(),
+				  dimsSlacks.numFirstStageVars(),
+				  MPI_DOUBLE,
+				  MPI_MAX,
+				  ctx.comm());
+
+    // Implicitly convert bool to int
+    int isChanged = isMIPchanged;
+    // Logical-OR-reduce isMIPchanged over all ranks
+    errorFlag = MPI_Allreduce(MPI_IN_PLACE,
+				  &isChanged,
+				  1,
+				  MPI_INT,
+				  MPI_LOR,
+				  ctx.comm());
+    // NOTE: if a compiler is being a pain about warnings, just negate twice.
+    isMIPchanged = static_cast<bool>(isChanged);
+
+    // Detect infeasibilities and broadcast.
+    if(ProvenInfeasible == status) {
+      errorFlag = MPI_Bcast(&status, 1, MPI_INT, mype, ctx.comm());
+    }
+
+  }
 
   // Auxiliary functions for branching
   int getFirstStageMinIntInfeasCol(const denseBAVector& primalSoln) {
