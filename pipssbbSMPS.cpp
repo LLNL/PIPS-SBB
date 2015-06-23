@@ -467,6 +467,104 @@ public:
     return isMIPchanged;
   }
 
+  bool improveCoeffsByRow(denseVector &colLB,
+			  denseVector &colUB,
+			  const denseFlagVector<bool> &isVarBinary,
+			  const CoinShallowPackedVector &currentRow,
+			  const double &Lmax,
+			  const double &Lmin,
+			  const double &rowLB,
+			  const double &rowUB) {
+    bool isMIPchanged = false;
+
+    /*
+    const double *ptrToElts = currentRow.getElements();
+    const int *ptrToIdx = currentRow.getIndices();
+    int currentRowSize = currentRow.getNumElements();
+
+    for (int j = 0; j < currentRowSize; j++) {
+      const int col = ptrToIdx[j];
+      const bool isBinary = isVarBinary[col];
+      double coeff = ptrToElts[j];
+      bool isCoeffPositive = (coeff > 0); // Note: only nonzero coeffs stored
+      bool isCoeffNegative = (coeff < 0);
+      double &varUB = colUB[col];
+      double &varLB = colLB[col];
+
+      // Derived by analogy to Savelsbergh Sections 1.2, 1.3
+      // Note: This code cannot currently work as written, because
+      // PIPSInterface.d (e.g., rootSolver.d) is a protected member, and
+      // thus cannot be written to at the moment.
+      if(isBinary) {
+      // Maximum and minimum possible values for inequality in this row
+      // after discarding all other inequalities
+      double rowMax = Lmax - abs(coeff);
+      double rowMin = Lmin + abs(coeff);
+
+      // Maximum coefficient increases/decreases by coefficient
+      // improvement subsection of Savelsbergh, Section 1.2.
+      // Note: derived additional relationships for double-sided
+      // inequalities. The basic idea is to see how much each side
+      // of the inequality could possibly be modified after
+      // looking at the max & min possible values for inequality.
+      // The minimum of the possible changes will be used to compute
+      // changes in bounds and coefficients.
+      double coeffLBchg = max(rowUB - rowMax, 0.0);
+      double coeffUBchg = max(rowMin - rowLB, 0.0);
+      double coeffChg = min(coeffLBchg, coeffUBchg);
+      bool isCoeffImprovable = (coeffChg > 0.0);
+
+      // Note: In many cases, if the coefficients cannot be improved
+      // (i.e., coeffChg == 0.0), the code below will do unnecessary
+      // assignments. One later optimization could be to get rid of
+      // these assignments, if they require a significant amount of
+      // time.
+
+      // With two-sided inequalities, it is *ALWAYS* possible to
+      // improve the coefficient and one side of the bounds (upper
+      // or lower).  (Compare to the one-sided inequality case,
+      // where it is always possible to improve the coefficient,
+      // but not necessarily the bound, which can only be improved
+      // for binary variables with positive coefficients.)  The
+      // idea is to consider two MIPs at once, and then show that
+      // in the positive coefficient case, the minimum of the
+      // possible changes can be applied to reduce the row upper
+      // bound and the coefficient. In the negative coefficient
+      // case, the minimum of the possible changes can be applied
+      // to increase the row lower bound and the
+      // coefficient. Here, the reason that the negative
+      // coefficient is an increase and not a decrease is because
+      // Savelsbergh forces coefficients to be positive in his
+      // derivations (even the "negative" ones; he implicitly
+      // takes an absolute value); flipping signs changes the
+      // subtractions to additions.
+      // TODO: May need to update isCoeffPositive & isCoeffNegative
+      // in response to updates of coeff. Possibly worth putting into
+      // its own self-updating data structure?
+
+      if (isCoeffImprovable && isCoeffPositive) {
+      ub.getFirstStageVec()[dimsSlacks.numFirstStageVars() + row] += -coeffChg;
+      coeff -= coeffChg;
+      problemData.Arow->modifyCoefficient(row, col, newCoeff);
+      // PIPS-S uses the idiom:
+      // Acol->reverseOrderedCopyOf(*Arow);
+      // This idiom seems wasteful here; a possibly better one could be:
+      problemData.Acol->modifyCoefficient(row, col, newCoeff);
+      }
+      else if (isCoeffImprovable && isCoeffNegative) {
+      lb.getFirstStageVec()[dimsSlacks.numFirstStageVars() + row] += coeffChg;
+      double coeff += coeffChg;
+      problemData.Arow->modifyCoefficient(row, col, newCoeff);
+      // PIPS-S uses the idiom:
+      // Acol->reverseOrderedCopyOf(*Arow);
+      // This idiom seems wasteful here; a possibly better one could be:
+      problemData.Acol->modifyCoefficient(row, col, newCoeff);
+      }
+      }
+    */
+    return isMIPchanged;
+  }
+
   // First stage presolve
   bool presolveFirstStage(denseBAVector &lb, denseBAVector &ub, BAData& problemData) {
     bool isMIPchanged = false;
@@ -555,10 +653,7 @@ public:
       }
       */
 
-      const double *ptrToElts = currentRow.getElements();
-      const int *ptrToIdx = currentRow.getIndices();
-      int currentRowSize = currentRow.getNumElements();
-
+      // Improve bounds and fix binary variables in first stage.
       isMIPchanged = tightenColBoundsByRow(lb.getFirstStageVec(),
 					   ub.getFirstStageVec(),
 					   isColBinary.getFirstStageVec(),
@@ -568,86 +663,21 @@ public:
 					   rowLB,
 					   rowUB) || isMIPchanged;
 
-      // Bound improvement/fixing binary variables/improving binary coeffs
-      for (int j = 0; j < currentRowSize; j++) {
-	/*
-	// Derived by analogy to Savelsbergh Sections 1.2, 1.3
-	// Note: This code cannot currently work as written, because
-	// PIPSInterface.d (e.g., rootSolver.d) is a protected member, and
-	// thus cannot be written to at the moment.
-	if(isBinary) {
-	  // Maximum and minimum possible values for inequality in this row
-	  // after discarding all other inequalities
-	  double rowMax = Lmax - abs(coeff);
-	  double rowMin = Lmin + abs(coeff);
-
-	  // Maximum coefficient increases/decreases by coefficient
-	  // improvement subsection of Savelsbergh, Section 1.2.
-	  // Note: derived additional relationships for double-sided
-	  // inequalities. The basic idea is to see how much each side
-	  // of the inequality could possibly be modified after
-	  // looking at the max & min possible values for inequality.
-	  // The minimum of the possible changes will be used to compute
-	  // changes in bounds and coefficients.
-	  double coeffLBchg = max(rowUB - rowMax, 0.0);
-	  double coeffUBchg = max(rowMin - rowLB, 0.0);
-	  double coeffChg = min(coeffLBchg, coeffUBchg);
-	  bool isCoeffImprovable = (coeffChg > 0.0);
-
-	  // Note: In many cases, if the coefficients cannot be improved
-	  // (i.e., coeffChg == 0.0), the code below will do unnecessary
-	  // assignments. One later optimization could be to get rid of
-	  // these assignments, if they require a significant amount of
-	  // time.
-
-	  // With two-sided inequalities, it is *ALWAYS* possible to
-	  // improve the coefficient and one side of the bounds (upper
-	  // or lower).  (Compare to the one-sided inequality case,
-	  // where it is always possible to improve the coefficient,
-	  // but not necessarily the bound, which can only be improved
-	  // for binary variables with positive coefficients.)  The
-	  // idea is to consider two MIPs at once, and then show that
-	  // in the positive coefficient case, the minimum of the
-	  // possible changes can be applied to reduce the row upper
-	  // bound and the coefficient. In the negative coefficient
-	  // case, the minimum of the possible changes can be applied
-	  // to increase the row lower bound and the
-	  // coefficient. Here, the reason that the negative
-	  // coefficient is an increase and not a decrease is because
-	  // Savelsbergh forces coefficients to be positive in his
-	  // derivations (even the "negative" ones; he implicitly
-	  // takes an absolute value); flipping signs changes the
-	  // subtractions to additions.
-	  // TODO: May need to update isCoeffPositive & isCoeffNegative
-	  // in response to updates of coeff. Possibly worth putting into
-	  // its own self-updating data structure?
-
-	  if (isCoeffImprovable && isCoeffPositive) {
-	    ub.getFirstStageVec()[dimsSlacks.numFirstStageVars() + row] += -coeffChg;
-	    coeff -= coeffChg;
-	    problemData.Arow->modifyCoefficient(row, col, newCoeff);
-	    // PIPS-S uses the idiom:
-	    // Acol->reverseOrderedCopyOf(*Arow);
-	    // This idiom seems wasteful here; a possibly better one could be:
-	    problemData.Acol->modifyCoefficient(row, col, newCoeff);
-	  }
-	  else if (isCoeffImprovable && isCoeffNegative) {
-	    lb.getFirstStageVec()[dimsSlacks.numFirstStageVars() + row] += coeffChg;
-	    double coeff += coeffChg;
-	    problemData.Arow->modifyCoefficient(row, col, newCoeff);
-	    // PIPS-S uses the idiom:
-	    // Acol->reverseOrderedCopyOf(*Arow);
-	    // This idiom seems wasteful here; a possibly better one could be:
-	    problemData.Acol->modifyCoefficient(row, col, newCoeff);
-	  }
-	}
-	*/
-
-      }
+      // Improve coeffs of binary variables in first stage.
+      // NOTE: Currently does nothing; requires refactoring PIPSInterface.
+      // See function body for details.
+      isMIPchanged = improveCoeffsByRow(lb.getFirstStageVec(),
+				       ub.getFirstStageVec(),
+				       isColBinary.getFirstStageVec(),
+				       currentRow,
+				       Lmax,
+				       Lmin,
+				       rowLB,
+				       rowUB) || isMIPchanged;
     }
-
     return isMIPchanged;
   }
+
 
   // Auxiliary functions for branching
   int getFirstStageMinIntInfeasCol(const denseBAVector& primalSoln) {
