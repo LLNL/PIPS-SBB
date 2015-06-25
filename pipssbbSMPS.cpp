@@ -9,6 +9,7 @@
 #include <cassert> // C-style assertions
 #include <cmath> // for floor, ceil, abs functions
 #include <algorithm> // for min
+#include <limits> // for numeric_limits, overflow checks
 
 using boost::scoped_ptr; // replace with unique_ptr for C++11
 using namespace std;
@@ -277,7 +278,7 @@ public:
       if(0 == mype) cout << "Presolve sync iteration "
 			 << numPresolves << endl;
       presolveSyncFirstStage(isMIPchanged, lb, ub);
-      
+
       // Stop presolve if infeasibility detected after 2nd stage presolve.
       if (ProvenInfeasible == status) break;
 
@@ -320,6 +321,21 @@ public:
   // Default destructor
   ~BranchAndBoundTree() {}
 
+  double overflowSafeAdd(double x, double y) {
+    bool isSameSign = ((x < 0.0) == (y < 0.0));
+    bool isMagnitudeOverflow =
+      (std::abs(y) > std::numeric_limits<double>::max() - std::abs(x));
+    if (isSameSign && isMagnitudeOverflow) {
+      if (x > 0.0) return COIN_DBL_MAX;
+      if (y < 0.0) return -COIN_DBL_MAX;
+    }
+
+    return (x + y);
+  }
+
+  // TODO: Refactor presolve into its own class.
+  // TODO: Undo changes for bound consistency, check for overflow.
+
   void incrementLmaxLminByRow(const denseVector &colLB,
 			      const denseVector &colUB,
 			      const CoinShallowPackedVector &currentRow,
@@ -348,8 +364,8 @@ public:
       // only the sign matters.
 
       if(coeff >= 0) {
-	Lmax += colUB[col] * coeff;
-	Lmin += colLB[col] * coeff;
+	Lmax = overflowSafeAdd(Lmax, colUB[col] * coeff);
+	Lmin = overflowSafeAdd(Lmin, colLB[col] * coeff);
       }
       else { // coeff < 0
 	//
@@ -361,8 +377,8 @@ public:
 	//   flip the sign of those terms, so they are now all
 	//   additions instead of subtractions.
 	//
-	Lmax += colLB[col] * coeff;
-	Lmin += colUB[col] * coeff;
+	Lmax = overflowSafeAdd(Lmax, colLB[col] * coeff);
+	Lmin = overflowSafeAdd(Lmin, colUB[col] * coeff);
       }
     }
   }
@@ -410,12 +426,12 @@ public:
 	// coefficients positive.
 
 	// Savelsbergh, Section 1.3: Fixing of variables
-	bool isBinaryFixableLmin = ((Lmin + abs(coeff)) > rowUB);
+	bool isBinaryFixableLmin = (overflowSafeAdd(Lmin, abs(coeff)) > rowUB);
 	// Translation of Savelsbergh 1.3: for lower bound
 	// constraints, flip "min" to "max", row upper bound to row
 	// lower bound, and adding abs val of coefficient to
 	// subtracting abs val of coefficient.
-	bool isBinaryFixableLmax = ((Lmax - abs(coeff)) < rowLB);
+	bool isBinaryFixableLmax = (overflowSafeAdd(Lmax, -abs(coeff)) < rowLB);
 
 	// If either binary fixing condition is true, then binary variable is fixable.
 	bool isBinaryFixable = isBinaryFixableLmin || isBinaryFixableLmax;
@@ -458,31 +474,34 @@ public:
 	}
 
       }
-      else { // continuous variable fixing
+      else { // continuous and integer non-binary variable fixing
+	// If assertions in this scope are tripped, check for overflow
+	// issues.
 
 	// Lmin-derived lower bounds -- in Savelsberg, Section 1.1.
 	// These expressions both come straight from Savelsbergh's summary
 	// in Section 1.3, under "Improvement of bounds".
-	double LminLB = (rowUB - (Lmin - coeff*varUB))/coeff;
-	double LminUB = (rowUB - (Lmin - coeff*varLB))/coeff;
-
 	if (isCoeffPositive) {
+	  double LminUB = (rowUB - (Lmin - coeff*varLB))/coeff;
 	  if (LminUB < varUB) {
 	    if (0 == mype) cout << "Tightening UB on scen " << scen
 				<< ", col " << col << " from "
-				<< varUB << " to " << max(LminUB, varLB)
+				<< varUB << " to " << LminUB
 				<< "via Lmin!\n";
-	    varUB = max(LminUB, varLB); // Cannot decrease UB below LB
+	    assert(LminUB > varLB);
+	    varUB = LminUB;
 	    isMIPchanged = true;
 	  }
 	}
 	else {
+	  double LminLB = (rowUB - (Lmin - coeff*varUB))/coeff;
 	  if (LminLB > varLB) {
 	    if (0 == mype) cout << "Tightening LB on scen " << scen
 				<< ", col " << col << " from "
-				<< varLB << " to " << min(LminLB, varUB)
+				<< varLB << " to " << LminLB
 				<< " via Lmin!\n";
-	    varLB = min(LminLB, varUB); // Cannot increase LB above UB
+	    assert(LminLB < varUB);
+	    varLB = LminLB;
 	    isMIPchanged = true;
 	  }
 	}
@@ -491,28 +510,32 @@ public:
 	// These expressions both come from Savelsbergh's summary
 	// in Section 1.3, under "Improvement of bounds"; the modifications
 	// are to flip lower bounds to upper bounds and Lmin to Lmax.
-	double LmaxUB = (rowLB - (Lmax - coeff*varLB))/coeff;
-	double LmaxLB = (rowLB - (Lmax - coeff*varUB))/coeff;
 	if (isCoeffPositive) {
+	  double LmaxLB = (rowLB - (Lmax - coeff*varUB))/coeff;
 	  if (LmaxLB > varLB) {
 	    if (0 == mype) cout << "Tightening LB on scen " << scen
 				<< ", col " << col << " from "
-				<< varLB << " to " << min(LmaxLB, varUB)
+				<< varLB << " to " << LmaxLB
 				<< " via Lmax!\n";
-	    varLB = min(LmaxLB, varUB); // Cannot increase LB above UB
+	    assert(LmaxLB < varUB);
+	    varLB = LmaxLB;
 	    isMIPchanged = true;
 	  }
 	}
 	else {
+	  double LmaxUB = (rowLB - (Lmax - coeff*varLB))/coeff;
 	  if (LmaxUB < varUB) {
 	    if (0 == mype) cout << "Tightening UB on scen " << scen
 				<< ", col " << col << " from "
-				<< varUB << " to " << max(LmaxUB, varLB)
+				<< varUB << " to " << LmaxUB
 				<< " via Lmax!\n";
-	    varUB = max(LmaxUB, varLB); // Cannot decrease UB below LB
+	    assert(LmaxUB > varLB);
+	    varUB = LmaxUB;
 	    isMIPchanged = true;
 	  }
 	}
+
+	// TODO: Improve variable bounds by rounding for integer-valued variables
       }
     }
     return isMIPchanged;
