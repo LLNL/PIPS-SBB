@@ -245,26 +245,9 @@ public:
       }
     }
 
-    // TODO: Replace with real presolve.
-    // For now, "cheat" by solving root LP before populating root node.
-    // A warm start of the root node means that the root node solve
-    // inside the B&B tree does not cost very much -- just the PIPS-S overhead.
-    // However, this step is necessary in order to properly allocate primal
-    // variables (due to slacks) and to determine which variables are basic.
-    // This step is also currently required to instantiate lower & upper
-    // bounds. In theory, the bounds could be obtained from the SMPS file.
-    // In practice, getting the bounds from the SMPS file is cumbersome,
-    // because first stage bounds and second stage bounds must be
-    // queried separately and are returned as std::vector<double>s.
-    // In addition, distributed data structures dictate some care in
-    // how the assignments are performed: there must be checks to
-    // ensure that the data to be assigned is owned by the "right" process.
-
     // Get lower & upper bounds on decision variables in LP.
     if (0 == mype) cout << "Getting bounds for root node from presolve!\n";
-
     BAData problemData = rootSolver.getBAData();
-
     denseBAVector lb, ub;
     lb.allocate(dimsSlacks, ctx, PrimalVector); lb.copyFrom(problemData.l);
     ub.allocate(dimsSlacks, ctx, PrimalVector); ub.copyFrom(problemData.u);
@@ -274,30 +257,42 @@ public:
     while(true) {
       numPresolves++;
       bool isMIPchanged = false;
+      if(0 == mype) cout << "First stage presolve iteration "
+			 << numPresolves << endl;
       isMIPchanged = presolveFirstStage(lb, ub, problemData) || isMIPchanged;
 
-      /*
+      // Stop presolve if infeasiblility detected after 1st stage presolve.
+      if (ProvenInfeasible == status) break;
+
+      if(0 == mype) cout << "Second stage presolve iteration "
+			 << numPresolves << endl;
       for (int scen = 0; scen < input.nScenarios(); scen++) {
 	if(ctx.assignedScenario(scen)) {
 	  isMIPchanged = presolveSecondStage(lb, ub, problemData, scen) ||
 	    isMIPchanged;
 	}
       }
-      */
 
       // Synchronize first stage information and isMIPchanged via reductions.
+      if(0 == mype) cout << "Presolve sync iteration "
+			 << numPresolves << endl;
       presolveSyncFirstStage(isMIPchanged, lb, ub);
+      
+      // Stop presolve if infeasibility detected after 2nd stage presolve.
+      if (ProvenInfeasible == status) break;
 
-      // Stop presolve when presolve operations no longer change MIP,
-      // or MIP infeasible.
-      bool isInfeasible = (ProvenInfeasible == status);
-      if (!isMIPchanged || isInfeasible) break;
+      // Stop presolve if presolve operations do not change MIP.
+      if (!isMIPchanged) break;
 
-      // If presolve detects infeasibility, return with infeasible status.
-      //return;
+      // Failsafe for now
+      if(numPresolves > 100) break;
     }
 
     if (0 == mype) cout << "There were " << numPresolves << " presolves.\n";
+
+    // Update MIP data based on presolve.
+    rootSolver.setLB(lb);
+    rootSolver.setUB(ub);
 
     // Allocate current best primal solution; normally this primal solution
     // is for the upper bound, but here, we have only the solution to an
@@ -329,33 +324,46 @@ public:
 			      const denseVector &colUB,
 			      const CoinShallowPackedVector &currentRow,
 			      double &Lmax,
-			      double &Lmin) {
+			      double &Lmin,
+			      int scen) {
     const double *ptrToElts = currentRow.getElements();
     const int *ptrToIdx = currentRow.getIndices();
     int currentRowSize = currentRow.getNumElements();
+
     for (int j = 0; j < currentRowSize; j++) {
       int col = ptrToIdx[j]; // column index from sparse vector
       double coeff = ptrToElts[j];
 
+      // TODO(oxberry1@llnl.gov): Make this code logging code.
+      if (0 == mype) {
+	cout << "LB of scen " << scen << ", col " << col
+	     << " = " << colLB[col] << endl;
+	cout << "UB of scen " << scen << ", col " << col
+	     << " = " << colUB[col] << endl;
+	cout << "coeff of scen " << scen << ", col " << col
+	     << " = " << coeff << endl;
+      }
+
       // Here, floating point comparison tolerance is not necessary;
       // only the sign matters.
-	if(coeff >= 0) {
-	  Lmax += colUB[col] * coeff;
-	  Lmin += colLB[col] * coeff;
-	}
-	else { // coeff < 0
-	  //
-	  //   Note: In Savelsbergh, Section 1.3, first two equations,
-	  //   coeff is assumed positive by convention, and then a
-	  //   negative sign is applied to terms with coeff based on
-	  //   the index j being in a positive index set or negative
-	  //   index set. Since coeff is negative in this branch, we
-	  //   flip the sign of those terms, so they are now all
-	  //   additions instead of subtractions.
-          //
-	  Lmax += colLB[col] * coeff;
-	  Lmin += colUB[col] * coeff;
-	}
+
+      if(coeff >= 0) {
+	Lmax += colUB[col] * coeff;
+	Lmin += colLB[col] * coeff;
+      }
+      else { // coeff < 0
+	//
+	//   Note: In Savelsbergh, Section 1.3, first two equations,
+	//   coeff is assumed positive by convention, and then a
+	//   negative sign is applied to terms with coeff based on
+	//   the index j being in a positive index set or negative
+	//   index set. Since coeff is negative in this branch, we
+	//   flip the sign of those terms, so they are now all
+	//   additions instead of subtractions.
+	//
+	Lmax += colLB[col] * coeff;
+	Lmin += colUB[col] * coeff;
+      }
     }
   }
 
@@ -366,10 +374,11 @@ public:
 			     denseVector &colUB,
 			     const denseFlagVector<bool> &isVarBinary,
 			     const CoinShallowPackedVector &currentRow,
-			     const double &Lmax,
-			     const double &Lmin,
-			     const double &rowLB,
-			     const double &rowUB) {
+			     double Lmax,
+			     double Lmin,
+			     double rowLB,
+			     double rowUB,
+			     int scen) {
     bool isMIPchanged = false;
     const double *ptrToElts = currentRow.getElements();
     const int *ptrToIdx = currentRow.getIndices();
@@ -384,6 +393,10 @@ public:
       bool isCoeffNegative = (coeff < 0);
       double &varUB = colUB[col];
       double &varLB = colLB[col];
+
+      // If variable bounds are fixed and equal, bounds cannot be improved.
+      bool isFixed = (varUB == varLB);
+      if (isFixed) continue;
 
       // Bound improvement setup steps; note: for valid lower bound, signs
       // of coefficient terms are flipped because Savelsbergh assumes all
@@ -401,65 +414,82 @@ public:
 	// subtracting abs val of coefficient.
 	bool isBinaryFixableLmax = ((Lmax - abs(coeff)) < rowLB);
 
+	/*
 	// If either binary fixing condition is true, then binary variable is fixable.
 	bool isBinaryFixable = isBinaryFixableLmin || isBinaryFixableLmax;
 
 	if(isBinaryFixable) isMIPchanged = true;
+	*/
+	if(isBinaryFixableLmin) isMIPchanged = true;
 
 	// Four cases:
 	// Cases 1 & 2: binary variable fixable based on Lmin
 	// and row upper bound
 	if (isBinaryFixableLmin) {
-	  if (0 == mype) cout << "Fixing binary variable via Lmin!" << endl;
 	  // Case 1: if coefficient is positive, binary variable fixed to zero
 	  if (isCoeffPositive) {
-	    if (0 == mype) cout << "Fix 1st stage bin var " << col << " to 0" << endl;
+	    if (0 == mype) cout << "Fix bin var in scen " << scen << ", col "
+				<< col << " to 0 via Lmin!" << endl;
 	    varUB = 0.0;
 	  }
 	  // Case 2: if coefficient is negative, binary variable fixed to one
 	  if (isCoeffNegative) {
-	    if (0 == mype) cout << "Fix 1st stage bin var " << col << " to 1" << endl;
+	    if (0 == mype) cout << "Fix bin var in scen " << scen << ", col "
+				<< col << " to 1 via Lmin!" << endl;
 	    varLB = 1.0;
 	  }
 	}
+
+	/*
 	// Cases 3 & 4: binary variable is fixable based on Lmax and
 	// row lower bound
 	if (isBinaryFixableLmax) {
-	  if (0 == mype) cout << "Fixing binary variable via Lmax!" << endl;
 	  // Case 3: if coefficient is positive, binary variable fixed to one
 	  if (isCoeffPositive) {
-	    if (0 == mype) cout << "Fix 1st stage bin var " << col << " to 1" << endl;
+	    if (0 == mype) cout << "Fix bin var in scen " << scen << ", col "
+				<< col << " to 1 via Lmax!" << endl;
 	    varLB = 1.0;
 	  }
 	  // Case 4: if coefficient is negative, binary variable fixed to zero
 	  if (isCoeffNegative) {
-	    if (0 == mype) cout << "Fix 1st stage bin var " << col << " to 0" << endl;
+	    if (0 == mype) cout << "Fix bin var in scen " << scen << ", col "
+				<< col << " to 0 via Lmax!" << endl;
 	    varUB = 0.0;
 	  }
 	}
+	*/
 
       }
       else { // continuous variable fixing
+
 	// Lmin-derived lower bounds -- in Savelsberg, Section 1.1.
 	// These expressions both come straight from Savelsbergh's summary
 	// in Section 1.3, under "Improvement of bounds".
 	double LminLB = (rowUB - (Lmin - coeff*varUB))/coeff;
 	double LminUB = (rowUB - (Lmin - coeff*varLB))/coeff;
+
 	if (isCoeffPositive) {
 	  if (LminUB < varUB) {
-	    if (0 == mype) cout << "Tightening UB on 1st stage col " << col << " via Lmin!\n";
-	    varUB = LminUB;
+	    if (0 == mype) cout << "Tightening UB on scen " << scen
+				<< ", col " << col << " from "
+				<< varUB << " to " << max(LminUB, varLB)
+				<< "via Lmin!\n";
+	    varUB = max(LminUB, varLB); // Cannot decrease UB below LB
 	    isMIPchanged = true;
 	  }
 	}
 	else {
 	  if (LminLB > varLB) {
-	    if (0 == mype) cout << "Tightening LB on 1st stage col " << col << " via Lmin!\n";
-	    varLB = LminLB;
+	    if (0 == mype) cout << "Tightening LB on scen " << scen
+				<< ", col " << col << " from "
+				<< varLB << " to " << min(LminLB, varUB)
+				<< " via Lmin!\n";
+	    varLB = min(LminLB, varUB); // Cannot increase LB above UB
 	    isMIPchanged = true;
 	  }
 	}
 
+	/*
 	// Lmax-derived lower bounds -- by analogy to Savelsberg, Section 1.1
 	// These expressions both come from Savelsbergh's summary
 	// in Section 1.3, under "Improvement of bounds"; the modifications
@@ -468,18 +498,25 @@ public:
 	double LmaxLB = (rowLB - (Lmax - coeff*varUB))/coeff;
 	if (isCoeffPositive) {
 	  if (LmaxUB < varUB) {
-	    if (0 == mype) cout << "Tightening UB on 1st stage col " << col << " via Lmax!\n";
-	    varUB = LmaxUB;
+	    if (0 == mype) cout << "Tightening UB on scen " << scen
+				<< ", col " << col << " from "
+				<< varUB << " to " << max(LmaxUB, varLB)
+				<< " via Lmax!\n";
+	    varUB = max(LmaxUB, varLB); // Cannot decrease UB below LB
 	    isMIPchanged = true;
 	  }
 	}
 	else {
 	  if (LmaxLB > varLB) {
-	    if (0 == mype) cout << "Tightening LB on 1st stage col " << col << " via Lmax!\n";
-	    varLB = LmaxLB;
+	    if (0 == mype) cout << "Tightening LB on scen " << scen
+				<< ", col " << col << " from "
+				<< varLB << " to " << min(LmaxLB, varUB)
+				<< " via Lmax!\n";
+	    varLB = min(LmaxLB, varUB); // Cannot increase LB above UB
 	    isMIPchanged = true;
 	  }
 	}
+	*/
       }
     }
     return isMIPchanged;
@@ -586,6 +623,12 @@ public:
   // First stage presolve
   bool presolveFirstStage(denseBAVector &lb, denseBAVector &ub, BAData& problemData) {
     bool isMIPchanged = false;
+    if (0 == mype) {
+      cout << "First stage has:\n"
+	   << "\t " << dims.numFirstStageVars() << " logical variables\n"
+	   << "\t " << dims.numFirstStageCons()
+	   << " slack variables/constraints\n";
+    }
 
     // Begin presolve.
     // For now, focus only on:
@@ -611,7 +654,8 @@ public:
 			     ub.getFirstStageVec(),
 			     currentRow,
 			     Lmax,
-			     Lmin);
+			     Lmin,
+			     -1);
 
       // Diagnostic code.
       if (0 == row) {
@@ -649,7 +693,7 @@ public:
       if (isRowInfeasible) {
 	setStatusToProvenInfeasible();
 	if (0 == mype) {
-	  cout << "Row " << row << " is infeasible!" << endl;
+	  cout << "Row " << row << "in Stage 1 is infeasible!" << endl;
 	}
 	isMIPchanged = true;
 	return isMIPchanged;
@@ -679,19 +723,19 @@ public:
 					   Lmax,
 					   Lmin,
 					   rowLB,
-					   rowUB) || isMIPchanged;
+					   rowUB, -1) || isMIPchanged;
 
       // Improve coeffs of binary variables in first stage.
       // NOTE: Currently does nothing; requires refactoring PIPSInterface.
       // See function body for details.
       isMIPchanged = improveCoeffsByRow(lb.getFirstStageVec(),
-				       ub.getFirstStageVec(),
-				       isColBinary.getFirstStageVec(),
-				       currentRow,
-				       Lmax,
-				       Lmin,
-				       rowLB,
-				       rowUB) || isMIPchanged;
+					ub.getFirstStageVec(),
+					isColBinary.getFirstStageVec(),
+					currentRow,
+					Lmax,
+					Lmin,
+					rowLB,
+					rowUB) || isMIPchanged;
     }
     return isMIPchanged;
   }
@@ -704,6 +748,12 @@ public:
 			   int scen) {
     bool isMIPchanged = false;
 
+    if (0 == mype) {
+      cout << "Second stage scenario 0 has:\n"
+	   << "\t " << dims.numSecondStageVars(0) << " logical variables\n"
+	   << "\t " << dims.numSecondStageCons(0)
+	   << " slack variables/constraints\n";
+    }
     // Only makes sense when called by process that owns scenario scen.
     // NOTE: Probably could replace hard failure with returning
     // isMIPchanged = false with the current logic used for presolves,
@@ -734,14 +784,23 @@ public:
 			     ub.getFirstStageVec(),
 			     currentTrow,
 			     Lmax,
-			     Lmin);
+			     Lmin,
+			     -1);
 
       // Increment Lmax & Lmin using row of W matrix
       incrementLmaxLminByRow(lb.getSecondStageVec(scen),
 			     ub.getSecondStageVec(scen),
 			     currentWrow,
 			     Lmax,
-			     Lmin);
+			     Lmin,
+			     scen);
+
+      // Diagnostic code.
+      if (0 == row) {
+	if (0 == mype) {
+	  cout << "For row 0, Lmin = " << Lmin << " and Lmax = " << Lmax << endl;
+	}
+      }
 
       // Constraints are stored in the form l <= Ax <= u. Let nvars =
       // # of variables (including slacks!). For first stage
@@ -766,7 +825,7 @@ public:
 	setStatusToProvenInfeasible();
 	if (0 == mype) {
 	  cout << "Row " << row
-	       << "in scenario" << scen << " is infeasible!" << endl;
+	       << " in scenario " << scen << " is infeasible!" << endl;
 	}
 	isMIPchanged = true;
 	return isMIPchanged;
@@ -796,7 +855,8 @@ public:
 					   Lmax,
 					   Lmin,
 					   rowLB,
-					   rowUB) || isMIPchanged;
+					   rowUB,
+					   -1) || isMIPchanged;
 
       // Tighten second stage column bounds using row of W matrix
       isMIPchanged = tightenColBoundsByRow(lb.getSecondStageVec(scen),
@@ -806,7 +866,8 @@ public:
 					   Lmax,
 					   Lmin,
 					   rowLB,
-					   rowUB) || isMIPchanged;
+					   rowUB,
+					   scen) || isMIPchanged;
 
     }
 
