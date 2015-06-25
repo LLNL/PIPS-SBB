@@ -414,13 +414,10 @@ public:
 	// subtracting abs val of coefficient.
 	bool isBinaryFixableLmax = ((Lmax - abs(coeff)) < rowLB);
 
-	/*
 	// If either binary fixing condition is true, then binary variable is fixable.
 	bool isBinaryFixable = isBinaryFixableLmin || isBinaryFixableLmax;
 
 	if(isBinaryFixable) isMIPchanged = true;
-	*/
-	if(isBinaryFixableLmin) isMIPchanged = true;
 
 	// Four cases:
 	// Cases 1 & 2: binary variable fixable based on Lmin
@@ -440,7 +437,6 @@ public:
 	  }
 	}
 
-	/*
 	// Cases 3 & 4: binary variable is fixable based on Lmax and
 	// row lower bound
 	if (isBinaryFixableLmax) {
@@ -457,7 +453,6 @@ public:
 	    varUB = 0.0;
 	  }
 	}
-	*/
 
       }
       else { // continuous variable fixing
