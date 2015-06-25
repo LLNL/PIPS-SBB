@@ -394,6 +394,9 @@ public:
       double &varUB = colUB[col];
       double &varLB = colLB[col];
 
+      // If coefficient is zero, bounds cannot be improved.
+      if (!isCoeffPositive && !isCoeffNegative) continue;
+
       // If variable bounds are fixed and equal, bounds cannot be improved.
       bool isFixed = (varUB == varLB);
       if (isFixed) continue;
@@ -484,7 +487,6 @@ public:
 	  }
 	}
 
-	/*
 	// Lmax-derived lower bounds -- by analogy to Savelsberg, Section 1.1
 	// These expressions both come from Savelsbergh's summary
 	// in Section 1.3, under "Improvement of bounds"; the modifications
@@ -492,16 +494,6 @@ public:
 	double LmaxUB = (rowLB - (Lmax - coeff*varLB))/coeff;
 	double LmaxLB = (rowLB - (Lmax - coeff*varUB))/coeff;
 	if (isCoeffPositive) {
-	  if (LmaxUB < varUB) {
-	    if (0 == mype) cout << "Tightening UB on scen " << scen
-				<< ", col " << col << " from "
-				<< varUB << " to " << max(LmaxUB, varLB)
-				<< " via Lmax!\n";
-	    varUB = max(LmaxUB, varLB); // Cannot decrease UB below LB
-	    isMIPchanged = true;
-	  }
-	}
-	else {
 	  if (LmaxLB > varLB) {
 	    if (0 == mype) cout << "Tightening LB on scen " << scen
 				<< ", col " << col << " from "
@@ -511,7 +503,16 @@ public:
 	    isMIPchanged = true;
 	  }
 	}
-	*/
+	else {
+	  if (LmaxUB < varUB) {
+	    if (0 == mype) cout << "Tightening UB on scen " << scen
+				<< ", col " << col << " from "
+				<< varUB << " to " << max(LmaxUB, varLB)
+				<< " via Lmax!\n";
+	    varUB = max(LmaxUB, varLB); // Cannot decrease UB below LB
+	    isMIPchanged = true;
+	  }
+	}
       }
     }
     return isMIPchanged;
