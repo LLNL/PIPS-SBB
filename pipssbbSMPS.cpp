@@ -224,14 +224,6 @@ public:
 
     //if (0 == mype) cout << "Calling B&B tree constructor!\n";
 
-    /* Initialize branch-and-bound tree/heap */
-    // Get {lower, upper} bounds on decision variables, lower bound on objective function
-    // value from parent LP, initialize a node, and push onto heap to start.
-    assert (heap.empty()); // heap should be empty to start
-
-    rootSolver.setPrimalTolerance(lpPrimalTol);
-    rootSolver.setDualTolerance(lpDualTol);
-
     // Prior to presolve, determine if a given variable & scenario is binary.
     isColBinary.allocate(dims, ctx, PrimalVector);
     for (int col = 0; col < input.nFirstStageVars(); col++) {
@@ -246,13 +238,6 @@ public:
       }
     }
 
-    // Get lower & upper bounds on decision variables in LP.
-    if (0 == mype) cout << "Getting bounds for root node from presolve!\n";
-    BAData problemData = rootSolver.getBAData();
-    denseBAVector lb, ub;
-    lb.allocate(dimsSlacks, ctx, PrimalVector); lb.copyFrom(problemData.l);
-    ub.allocate(dimsSlacks, ctx, PrimalVector); ub.copyFrom(problemData.u);
-
     // Presolve first stage until nothing changes.
     unsigned int numPresolves = 0;
     while(true) {
@@ -260,7 +245,7 @@ public:
       bool isMIPchanged = false;
       if(0 == mype) cout << "First stage presolve iteration "
 			 << numPresolves << endl;
-      isMIPchanged = presolveFirstStage(lb, ub, problemData) || isMIPchanged;
+      isMIPchanged = presolveFirstStage(rootSolver.d) || isMIPchanged;
 
       // Stop presolve if infeasiblility detected after 1st stage presolve.
       if (ProvenInfeasible == status) break;
@@ -269,7 +254,7 @@ public:
 			 << numPresolves << endl;
       for (int scen = 0; scen < input.nScenarios(); scen++) {
 	if(ctx.assignedScenario(scen)) {
-	  isMIPchanged = presolveSecondStage(lb, ub, problemData, scen) ||
+	  isMIPchanged = presolveSecondStage(rootSolver.d, scen) ||
 	    isMIPchanged;
 	}
       }
@@ -277,7 +262,7 @@ public:
       // Synchronize first stage information and isMIPchanged via reductions.
       if(0 == mype) cout << "Presolve sync iteration "
 			 << numPresolves << endl;
-      presolveSyncFirstStage(isMIPchanged, lb, ub);
+      presolveSyncFirstStage(isMIPchanged, rootSolver.d);
 
       // Stop presolve if infeasibility detected after 2nd stage presolve.
       if (ProvenInfeasible == status) break;
@@ -291,9 +276,13 @@ public:
 
     if (0 == mype) cout << "There were " << numPresolves << " presolves.\n";
 
-    // Update MIP data based on presolve.
-    rootSolver.setLB(lb);
-    rootSolver.setUB(ub);
+    /* Initialize branch-and-bound tree/heap */
+    // Get {lower, upper} bounds on decision variables, lower bound on objective function
+    // value from parent LP, initialize a node, and push onto heap to start.
+    assert (heap.empty()); // heap should be empty to start
+
+    rootSolver.setPrimalTolerance(lpPrimalTol);
+    rootSolver.setDualTolerance(lpDualTol);
 
     // Allocate current best primal solution; normally this primal solution
     // is for the upper bound, but here, we have only the solution to an
@@ -311,6 +300,10 @@ public:
     BAFlagVector<variableState> states(dimsSlacks, ctx, PrimalVector);
 
     // Push root node onto B&B tree/heap.
+    denseBAVector lb, ub;
+    lb.allocate(dimsSlacks, ctx, PrimalVector); lb.copyFrom(rootSolver.d.l);
+    ub.allocate(dimsSlacks, ctx, PrimalVector); ub.copyFrom(rootSolver.d.u);
+
     BranchAndBoundNode rootNode(objLB, lb, ub, states);
     //if (0 == mype) cout << "Pushing root node onto B&B tree!\n";
     heap.push(rootNode);
@@ -640,7 +633,11 @@ public:
   }
 
   // First stage presolve
-  bool presolveFirstStage(denseBAVector &lb, denseBAVector &ub, BAData& problemData) {
+  bool presolveFirstStage(BAData& problemData) {
+
+    denseBAVector &lb = problemData.l;
+    denseBAVector &ub = problemData.u;
+
     bool isMIPchanged = false;
     if (0 == mype) {
       cout << "First stage has:\n"
@@ -761,10 +758,12 @@ public:
 
 
   // Second stage presolve
-  bool presolveSecondStage(denseBAVector &lb,
-			   denseBAVector &ub,
-			   BAData& problemData,
+  bool presolveSecondStage(BAData& problemData,
 			   int scen) {
+
+    denseBAVector &lb = problemData.l;
+    denseBAVector &ub = problemData.u;
+
     bool isMIPchanged = false;
 
     if (0 == mype) {
@@ -893,9 +892,11 @@ public:
     return isMIPchanged;
   }
 
-  void presolveSyncFirstStage(bool &isMIPchanged,
-			      denseBAVector& lb,
-			      denseBAVector& ub) {
+  void presolveSyncFirstStage(bool &isMIPchanged, BAData& problemData) {
+
+    denseBAVector &lb = problemData.l;
+    denseBAVector &ub = problemData.u;
+
     // TODO: Make the synchronization step more efficient by coalescing
     // communication even more. For now, shoehorn in a less performant
     // implementation as a proof-of-concept. This implementation is the
