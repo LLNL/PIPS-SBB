@@ -888,7 +888,6 @@ public:
   BAContext ctx; // MPI communication context for PIPS-S
   int mype; // MPI rank of process storing tree (relative to comm in ctx)
   SMPSInput input; // SMPS input file for reading in block angular MILP
-  BADimensions dims; // Dimension object for instantiating warm start information
   BAData problemData; // Data structure encoding MIP.
   //  Presolve pre; // Presolve object that transforms LP with presolve ops
   // Solver status; can only be in the set {LoadedFromFile, Initialized,
@@ -940,7 +939,6 @@ public:
 					     status(LoadedFromFile),
 					     //rootSolver(problemData, PIPSSInterface::useDual),
 					     rootSolver(input, ctx, PIPSSInterface::useDual),
-					     dims(input, ctx),
 					     objUB(COIN_DBL_MAX),
 					     objLB(-COIN_DBL_MAX),
 					     intTol(1e-6),
