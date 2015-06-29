@@ -72,13 +72,13 @@ void outputLPStatus(solverState lpStatus) {
 class Presolve {
 public:
 
-  Presolve(BAData d, SMPSInput &input) : d(d),
-					  input(input),
-					  ctx(d.ctx),
-					  dims(input, ctx),
-					  dimsSlacks(dims),
-					  mype(ctx.mype()),
-					  status(LoadedFromFile) {
+  Presolve(BAData& _d, SMPSInput &input) : d(_d),
+					   input(input),
+					   ctx(_d.ctx),
+					   dims(input, ctx),
+					   dimsSlacks(dims),
+					   mype(ctx.mype()),
+					   status(LoadedFromFile) {
 
     // Prior to presolve, determine if a given variable & scenario is binary.
     isColBinary.allocate(d.dims, d.ctx, PrimalVector);
@@ -137,15 +137,13 @@ public:
 private:
   // disallow default, copy constructors
   Presolve();
-  Presolve (const Presolve& p); 
+  Presolve(const Presolve& p); 
   // disallow copy assignment operator
   Presolve& operator=(const Presolve& p);
 
   SMPSInput input;
   BAContext& ctx;
-
-public:
-  BAData d;
+  BAData &d;
 
 private:
   BADimensions dims;
@@ -889,7 +887,7 @@ public:
   int mype; // MPI rank of process storing tree (relative to comm in ctx)
   SMPSInput input; // SMPS input file for reading in block angular MILP
   BAData problemData; // Data structure encoding MIP.
-  //  Presolve pre; // Presolve object that transforms LP with presolve ops
+  Presolve pre; // Presolve object that transforms LP with presolve ops
   // Solver status; can only be in the set {LoadedFromFile, Initialized,
   // PrimalFeasible, Optimal, ProvenUnbounded, ProvenInfeasible, Stopped}
   // because there is no duality theory, and currently, the only interface
@@ -934,9 +932,8 @@ public:
 					     mype(ctx.mype()),
 					     input(smps),
 					     problemData(input, ctx),
-					     //pre(problemData, input),
-					     //status(pre.status),
-					     status(LoadedFromFile),
+					     pre(problemData, input),
+					     status(pre.status),
 					     rootSolver(problemData, PIPSSInterface::useDual),
 					     objUB(COIN_DBL_MAX),
 					     objLB(-COIN_DBL_MAX),
