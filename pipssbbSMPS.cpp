@@ -69,163 +69,19 @@ void outputLPStatus(solverState lpStatus) {
   cout << status << endl;
 }
 
-class BranchAndBoundNode {
+class Presolve {
 public:
-  //PIPSSInterface* solver; // PIPS-S instance
-  double parentObj; // obj fn val of node parent
 
-  // TODO: Figure out correct data type for these variables
-  denseBAVector lb; // lower bounds of variables
-  denseBAVector ub; // upper bounds of variables
-
-  // variable states for warm start information; each index is
-  // one of {Basic, AtLower, AtUpper}
-  BAFlagVector<variableState> parentStates;
-
-  // TODO: Local cut objects; Global cuts are stored in the B&B tree.
-
-  // Construct node from {lower, upper} bounds, obj val of parent node
-  BranchAndBoundNode(double parentObjLB,
-		     const denseBAVector &lowerBounds,
-		     const denseBAVector &upperBounds,
-		     const BAFlagVector<variableState> &states):
-    parentObj(parentObjLB),
-    lb(lowerBounds),
-    ub(upperBounds),
-    parentStates(states) {}
-
-  // Add copy constructor so that priority_queue can use it for
-  // instantiation because denseBAVector and BAFlagVector do not have
-  // assignment operators or copy constructors.
-  BranchAndBoundNode(const BranchAndBoundNode &sourceNode):
-    parentObj(sourceNode.parentObj),
-    lb(sourceNode.lb),
-    ub(sourceNode.ub),
-    parentStates(sourceNode.parentStates) {}
-
-  // Overload assignment operator so that priority_queue can use it
-  // for instantiation because denseBAVector and BAFlagVector do not
-  // have assignment operators or copy constructors. Satisfies
-  // "Rule of 3". (For C++11, follow "Rule of 5".)
-  BranchAndBoundNode& operator=(const BranchAndBoundNode& sourceNode) {
-
-    /* Diagnostic code: delete when no longer needed */
-    /* Also assumes communicator is MPI_COMM_WORLD. */
-    int mype;
-    MPI_Comm_rank(MPI_COMM_WORLD, &mype);
-
-    //    if (0 == mype) cout << "Calling copy assignment operator!\n";
-    // Check for self-assignment
-    if (this == &sourceNode) {
-
-      //if (0 == mype) cout << "Calling self-assignment branch!\n";
-      return *this;
-    }
-
-    // Copy-assign each member individually
-    parentObj = sourceNode.parentObj;
-    lb = sourceNode.lb;
-    ub = sourceNode.ub;
-    parentStates = sourceNode.parentStates;
-
-    // Return existing object for chaining.
-    //if (0 == mype) cout << "Exiting copy assignment operator!\n";
-    return *this;
-  }
-
-private:
-  BranchAndBoundNode(); // Disallow default constructor
-
-};
-
-// Overload the "less than" operator so that priority_queue can use it
-// for heapifying comparisons. Make BranchAndBoundNode a templated
-// class when adding additional branching heuristics?
-bool operator< (const BranchAndBoundNode& left,
-		  const BranchAndBoundNode& right)
-{
-  return left.parentObj < right.parentObj;
-}
-
-bool operator> (const BranchAndBoundNode& left,
-		  const BranchAndBoundNode& right)
-{
-  return left.parentObj > right.parentObj;
-}
-
-
-// TODO: Check if PIPS-S always minimizes; otherwise, must change logic.
-
-class BranchAndBoundTree {
-public:
-  BAContext ctx; // MPI communication context for PIPS-S
-  int mype; // MPI rank of process storing tree (relative to comm in ctx)
-  SMPSInput input; // SMPS input file for reading in block angular MILP
-  PIPSSInterface rootSolver; // PIPS-S instance for root LP relaxation
-  BADimensions dims; // Dimension object for instantiating warm start information
-  BADimensionsSlacks dimsSlacks; // Dimension object for warm start info
-
-  double objUB; // best upper bound on objective function value
-  denseBAVector ubPrimalSolution; // primal solution for best UB on obj
-  double objLB; // best lower bound on objective function value
-
-  double intTol; // tolerance on integrality checks
-  double optGapTol; // tolerance on optimality gap between UB and LB.
-  double lpPrimalTol; // tolerance on LP primal problems
-  double lpDualTol; // tolerance on LP dual problems
-  double compTol; // tolerance on LP objective function comparisons
-
-  // TODO: Move this field into something like BAMIPData, etc.
-  BAFlagVector<bool> isColBinary; // stores whether a given variable is binary
-
-  // max-heap data structure with nodes
-  // TODO: Refactor to vector<BranchAndBound> & replace w/ make_heap, push_heap, pop_heap
-  //std::priority_queue<BranchAndBoundNode, std::vector<BranchAndBoundNode>, std::less<BranchAndBoundNode> > heap; // max-heap
-  std::priority_queue<BranchAndBoundNode, std::vector<BranchAndBoundNode>, std::greater<BranchAndBoundNode> > heap; // min-heap
-
-  // Solver status; can only be in the set {LoadedFromFile, Initialized,
-  // PrimalFeasible, Optimal, ProvenUnbounded, ProvenInfeasible, Stopped}
-  // because there is no duality theory, and currently, the only interface
-  // to the solver has to load problem data from a file as one of the first
-  // steps.
-  solverState status;
-
-public:
-  // Upon constructing the B&B tree:
-  // - instantiate MPI communicator context for block angular objects
-  // - Get rank of process relative to ctx.comm()
-  // - instantiate input object
-  // - instantiate PIPS-S for root LP relaxation
-  // - instantiate dimensions object for holding problem
-  //      dimension information for allocating vectors...
-  // - instantiate objective function upper bound to +infty (or a value close to that)
-  // - set integrality tolerance
-  // - set optimality gap tolerances
-  // - set LP solver tolerances
-  // - set comparison tolerance to primal tolerance for now
-  // - set solver status to "LoadedFromFile" because this interface forces MILP to
-  //   be loaded from an SMPS file
-
-  BranchAndBoundTree(const SMPSInput& smps): ctx(MPI_COMM_WORLD),
-					     mype(ctx.mype()),
-					     input(smps),
-					     rootSolver(input, ctx, PIPSSInterface::useDual),
-					     dims(input, ctx),
-					     dimsSlacks(dims),
-					     objUB(COIN_DBL_MAX),
-					     objLB(-COIN_DBL_MAX),
-					     intTol(1e-6),
-					     optGapTol(1e-6),
-					     lpPrimalTol(1e-6),
-					     lpDualTol(1e-6),
-					     compTol(lpPrimalTol),
-					     status(LoadedFromFile)
-  {
-
-    //if (0 == mype) cout << "Calling B&B tree constructor!\n";
+  Presolve(BAData d, SMPSInput &input) : d(d),
+					  input(input),
+					  ctx(d.ctx),
+					  dims(input, ctx),
+					  dimsSlacks(dims),
+					  mype(ctx.mype()),
+					  status(LoadedFromFile) {
 
     // Prior to presolve, determine if a given variable & scenario is binary.
-    isColBinary.allocate(dims, ctx, PrimalVector);
+    isColBinary.allocate(d.dims, d.ctx, PrimalVector);
     for (int col = 0; col < input.nFirstStageVars(); col++) {
       isColBinary.getFirstStageVec()[col] = input.isFirstStageColInteger(col);
     }
@@ -245,7 +101,7 @@ public:
       bool isMIPchanged = false;
       if(0 == mype) cout << "First stage presolve iteration "
 			 << numPresolves << endl;
-      isMIPchanged = presolveFirstStage(rootSolver.d) || isMIPchanged;
+      isMIPchanged = presolveFirstStage() || isMIPchanged;
 
       // Stop presolve if infeasiblility detected after 1st stage presolve.
       if (ProvenInfeasible == status) break;
@@ -254,7 +110,7 @@ public:
 			 << numPresolves << endl;
       for (int scen = 0; scen < input.nScenarios(); scen++) {
 	if(ctx.assignedScenario(scen)) {
-	  isMIPchanged = presolveSecondStage(rootSolver.d, scen) ||
+	  isMIPchanged = presolveSecondStage(scen) ||
 	    isMIPchanged;
 	}
       }
@@ -262,7 +118,7 @@ public:
       // Synchronize first stage information and isMIPchanged via reductions.
       if(0 == mype) cout << "Presolve sync iteration "
 			 << numPresolves << endl;
-      presolveSyncFirstStage(isMIPchanged, rootSolver.d);
+      presolveSyncFirstStage(isMIPchanged);
 
       // Stop presolve if infeasibility detected after 2nd stage presolve.
       if (ProvenInfeasible == status) break;
@@ -276,43 +132,42 @@ public:
 
     if (0 == mype) cout << "There were " << numPresolves << " presolves.\n";
 
-    /* Initialize branch-and-bound tree/heap */
-    // Get {lower, upper} bounds on decision variables, lower bound on objective function
-    // value from parent LP, initialize a node, and push onto heap to start.
-    assert (heap.empty()); // heap should be empty to start
-
-    rootSolver.setPrimalTolerance(lpPrimalTol);
-    rootSolver.setDualTolerance(lpDualTol);
-
-    // Allocate current best primal solution; normally this primal solution
-    // is for the upper bound, but here, we have only the solution to an
-    // LP relaxation, which may not be primal feasible. We don't check
-    // primal/integer feasibility here.
-    //if (0 == mype) cout << "Allocating primal solution!" << endl;
-    ubPrimalSolution.allocate(dimsSlacks, ctx, PrimalVector);
-    //if (0 == mype) cout << "Getting primal solution!" << endl;
-    //ubPrimalSolution.copyFrom(rootSolver.getPrimalSolution());
-    //if (0 == mype) cout << "MIP Primal solution updated!" << endl;
-
-    // State of primal variables + slacks for warm starts; slacks must
-    // be included because these are used in a reformulation of the
-    // problem to standard form
-    BAFlagVector<variableState> states(dimsSlacks, ctx, PrimalVector);
-
-    // Push root node onto B&B tree/heap.
-    denseBAVector lb, ub;
-    lb.allocate(dimsSlacks, ctx, PrimalVector); lb.copyFrom(rootSolver.d.l);
-    ub.allocate(dimsSlacks, ctx, PrimalVector); ub.copyFrom(rootSolver.d.u);
-
-    BranchAndBoundNode rootNode(objLB, lb, ub, states);
-    //if (0 == mype) cout << "Pushing root node onto B&B tree!\n";
-    heap.push(rootNode);
-    //if (0 == mype) cout << "Exiting B&B constructor!\n";
-
   }
 
-  // Default destructor
-  ~BranchAndBoundTree() {}
+private:
+  // disallow default, copy constructors
+  Presolve();
+  Presolve (const Presolve& p); 
+  // disallow copy assignment operator
+  Presolve& operator=(const Presolve& p);
+
+  SMPSInput input;
+  BAContext& ctx;
+
+public:
+  BAData d;
+
+private:
+  BADimensions dims;
+  BADimensionsSlacks dimsSlacks;
+  int mype;
+
+public:
+  solverState status;
+
+private:
+  // TODO: Move this field into something like BAMIPData, etc.
+  BAFlagVector<bool> isColBinary; // stores whether a given variable is binary
+
+  // TODO: Dirty hack. Must refactor status into a class that is a state
+  // machine.
+  void setStatusToProvenInfeasible() {
+    bool isInReachableState = (LoadedFromFile == status) ||
+      (ProvenInfeasible == status);
+    if (isInReachableState) {
+      status = ProvenInfeasible;
+    }
+  }
 
   double overflowSafeAdd(double x, double y) {
     bool isSameSign = ((x < 0.0) == (y < 0.0));
@@ -633,10 +488,10 @@ public:
   }
 
   // First stage presolve
-  bool presolveFirstStage(BAData& problemData) {
+  bool presolveFirstStage() {
 
-    denseBAVector &lb = problemData.l;
-    denseBAVector &ub = problemData.u;
+    denseBAVector &lb = d.l;
+    denseBAVector &ub = d.u;
 
     bool isMIPchanged = false;
     if (0 == mype) {
@@ -664,8 +519,8 @@ public:
       // L_max = maximum possible value of constraint in current row
       // L_min = minimum possible value of constraint in current row
       double Lmax = 0, Lmin = 0;
-      //      assert(!(problemData.Arow->isColOrdered()));
-      CoinShallowPackedVector currentRow = problemData.Arow->getVector(row);
+      //      assert(!(d.Arow->isColOrdered()));
+      CoinShallowPackedVector currentRow = d.Arow->getVector(row);
       incrementLmaxLminByRow(lb.getFirstStageVec(),
 			     ub.getFirstStageVec(),
 			     currentRow,
@@ -758,11 +613,10 @@ public:
 
 
   // Second stage presolve
-  bool presolveSecondStage(BAData& problemData,
-			   int scen) {
+  bool presolveSecondStage(int scen) {
 
-    denseBAVector &lb = problemData.l;
-    denseBAVector &ub = problemData.u;
+    denseBAVector &lb = d.l;
+    denseBAVector &ub = d.u;
 
     bool isMIPchanged = false;
 
@@ -794,8 +648,8 @@ public:
       // L_min = minimum possible value of constraint in current row
       double Lmax = 0, Lmin = 0;
       CoinShallowPackedVector currentTrow, currentWrow;
-      currentTrow = problemData.Trow[scen]->getVector(row);
-      currentWrow = problemData.Wrow[scen]->getVector(row);
+      currentTrow = d.Trow[scen]->getVector(row);
+      currentWrow = d.Wrow[scen]->getVector(row);
 
       // Increment Lmax & Lmin using row of T matrix
       incrementLmaxLminByRow(lb.getFirstStageVec(),
@@ -892,10 +746,10 @@ public:
     return isMIPchanged;
   }
 
-  void presolveSyncFirstStage(bool &isMIPchanged, BAData& problemData) {
+  void presolveSyncFirstStage(bool &isMIPchanged) {
 
-    denseBAVector &lb = problemData.l;
-    denseBAVector &ub = problemData.u;
+    denseBAVector &lb = d.l;
+    denseBAVector &ub = d.u;
 
     // TODO: Make the synchronization step more efficient by coalescing
     // communication even more. For now, shoehorn in a less performant
@@ -939,6 +793,218 @@ public:
     }
 
   }
+
+};
+
+class BranchAndBoundNode {
+public:
+  //PIPSSInterface* solver; // PIPS-S instance
+  double parentObj; // obj fn val of node parent
+
+  // TODO: Figure out correct data type for these variables
+  denseBAVector lb; // lower bounds of variables
+  denseBAVector ub; // upper bounds of variables
+
+  // variable states for warm start information; each index is
+  // one of {Basic, AtLower, AtUpper}
+  BAFlagVector<variableState> parentStates;
+
+  // TODO: Local cut objects; Global cuts are stored in the B&B tree.
+
+  // Construct node from {lower, upper} bounds, obj val of parent node
+  BranchAndBoundNode(double parentObjLB,
+		     const denseBAVector &lowerBounds,
+		     const denseBAVector &upperBounds,
+		     const BAFlagVector<variableState> &states):
+    parentObj(parentObjLB),
+    lb(lowerBounds),
+    ub(upperBounds),
+    parentStates(states) {}
+
+  // Add copy constructor so that priority_queue can use it for
+  // instantiation because denseBAVector and BAFlagVector do not have
+  // assignment operators or copy constructors.
+  BranchAndBoundNode(const BranchAndBoundNode &sourceNode):
+    parentObj(sourceNode.parentObj),
+    lb(sourceNode.lb),
+    ub(sourceNode.ub),
+    parentStates(sourceNode.parentStates) {}
+
+  // Overload assignment operator so that priority_queue can use it
+  // for instantiation because denseBAVector and BAFlagVector do not
+  // have assignment operators or copy constructors. Satisfies
+  // "Rule of 3". (For C++11, follow "Rule of 5".)
+  BranchAndBoundNode& operator=(const BranchAndBoundNode& sourceNode) {
+
+    /* Diagnostic code: delete when no longer needed */
+    /* Also assumes communicator is MPI_COMM_WORLD. */
+    int mype;
+    MPI_Comm_rank(MPI_COMM_WORLD, &mype);
+
+    //    if (0 == mype) cout << "Calling copy assignment operator!\n";
+    // Check for self-assignment
+    if (this == &sourceNode) {
+
+      //if (0 == mype) cout << "Calling self-assignment branch!\n";
+      return *this;
+    }
+
+    // Copy-assign each member individually
+    parentObj = sourceNode.parentObj;
+    lb = sourceNode.lb;
+    ub = sourceNode.ub;
+    parentStates = sourceNode.parentStates;
+
+    // Return existing object for chaining.
+    //if (0 == mype) cout << "Exiting copy assignment operator!\n";
+    return *this;
+  }
+
+private:
+  BranchAndBoundNode(); // Disallow default constructor
+
+};
+
+// Overload the "less than" operator so that priority_queue can use it
+// for heapifying comparisons. Make BranchAndBoundNode a templated
+// class when adding additional branching heuristics?
+bool operator< (const BranchAndBoundNode& left,
+		  const BranchAndBoundNode& right)
+{
+  return left.parentObj < right.parentObj;
+}
+
+bool operator> (const BranchAndBoundNode& left,
+		  const BranchAndBoundNode& right)
+{
+  return left.parentObj > right.parentObj;
+}
+
+
+// TODO: Check if PIPS-S always minimizes; otherwise, must change logic.
+
+class BranchAndBoundTree {
+public:
+  BAContext ctx; // MPI communication context for PIPS-S
+  int mype; // MPI rank of process storing tree (relative to comm in ctx)
+  SMPSInput input; // SMPS input file for reading in block angular MILP
+  BADimensions dims; // Dimension object for instantiating warm start information
+  BADimensionsSlacks dimsSlacks; // Dimension object for warm start info
+  BAData problemData; // Data structure encoding MIP.
+  //  Presolve pre; // Presolve object that transforms LP with presolve ops
+  // Solver status; can only be in the set {LoadedFromFile, Initialized,
+  // PrimalFeasible, Optimal, ProvenUnbounded, ProvenInfeasible, Stopped}
+  // because there is no duality theory, and currently, the only interface
+  // to the solver has to load problem data from a file as one of the first
+  // steps.
+  solverState status;
+  PIPSSInterface rootSolver; // PIPS-S instance for root LP relaxation
+
+  double objUB; // best upper bound on objective function value
+  denseBAVector ubPrimalSolution; // primal solution for best UB on obj
+  double objLB; // best lower bound on objective function value
+
+  double intTol; // tolerance on integrality checks
+  double optGapTol; // tolerance on optimality gap between UB and LB.
+  double lpPrimalTol; // tolerance on LP primal problems
+  double lpDualTol; // tolerance on LP dual problems
+  double compTol; // tolerance on LP objective function comparisons
+
+  // max-heap data structure with nodes
+  // TODO: Refactor to vector<BranchAndBound> & replace w/ make_heap, push_heap, pop_heap
+  //std::priority_queue<BranchAndBoundNode, std::vector<BranchAndBoundNode>, std::less<BranchAndBoundNode> > heap; // max-heap
+  std::priority_queue<BranchAndBoundNode, std::vector<BranchAndBoundNode>, std::greater<BranchAndBoundNode> > heap; // min-heap
+
+
+public:
+  // Upon constructing the B&B tree:
+  // - instantiate MPI communicator context for block angular objects
+  // - Get rank of process relative to ctx.comm()
+  // - instantiate input object
+  // - instantiate PIPS-S for root LP relaxation
+  // - instantiate dimensions object for holding problem
+  //      dimension information for allocating vectors...
+  // - instantiate objective function upper bound to +infty (or a value close to that)
+  // - set integrality tolerance
+  // - set optimality gap tolerances
+  // - set LP solver tolerances
+  // - set comparison tolerance to primal tolerance for now
+  // - set solver status to "LoadedFromFile" because this interface forces MILP to
+  //   be loaded from an SMPS file
+
+  BranchAndBoundTree(const SMPSInput& smps): ctx(MPI_COMM_WORLD),
+					     mype(ctx.mype()),
+					     input(smps),
+					     problemData(input, ctx),
+					     //pre(problemData, input),
+					     //status(pre.status),
+					     status(LoadedFromFile),
+					     //rootSolver(problemData, PIPSSInterface::useDual),
+					     rootSolver(input, ctx, PIPSSInterface::useDual),
+					     dims(input, ctx),
+					     dimsSlacks(dims),
+					     objUB(COIN_DBL_MAX),
+					     objLB(-COIN_DBL_MAX),
+					     intTol(1e-6),
+					     optGapTol(1e-6),
+					     lpPrimalTol(1e-6),
+					     lpDualTol(1e-6),
+					     compTol(lpPrimalTol)
+  {
+
+    //if (0 == mype) cout << "Calling B&B tree constructor!\n";
+
+    /* Initialize branch-and-bound tree/heap */
+    // Get {lower, upper} bounds on decision variables, lower bound on objective function
+    // value from parent LP, initialize a node, and push onto heap to start.
+    assert (heap.empty()); // heap should be empty to start
+
+    rootSolver.setPrimalTolerance(lpPrimalTol);
+    rootSolver.setDualTolerance(lpDualTol);
+
+    if (0 == mype) cout << "Getting problem data from root solver!\n";
+    //    BAData d = rootSolver.getBAData();
+    if (0 == mype) cout << "BAData object has dimensions:\n"
+			<< problemData.dims.numFirstStageVars()
+			<< " first stage variables\n"
+			<< problemData.dims.numFirstStageCons()
+			<< " first stage constraints\n";
+
+    denseBAVector lb, ub;
+    if (0 == mype) cout << "Getting lower bounds from root solver!\n";
+    lb.allocate(problemData.dims, problemData.ctx, PrimalVector); lb.copyFrom(problemData.l);
+    if (0 == mype) cout << "Getting upper bounds from root solver!\n";
+    ub.allocate(problemData.dims, problemData.ctx, PrimalVector); ub.copyFrom(problemData.u);
+    //    rootSolver.setLB(lb);
+    //    rootSolver.setUB(ub);
+
+    // Allocate current best primal solution; normally this primal solution
+    // is for the upper bound, but here, we have only the solution to an
+    // LP relaxation, which may not be primal feasible. We don't check
+    // primal/integer feasibility here.
+    //if (0 == mype) cout << "Allocating primal solution!" << endl;
+    ubPrimalSolution.allocate(problemData.dims, problemData.ctx, PrimalVector);
+    //if (0 == mype) cout << "Getting primal solution!" << endl;
+    //ubPrimalSolution.copyFrom(rootSolver.getPrimalSolution());
+    //if (0 == mype) cout << "MIP Primal solution updated!" << endl;
+
+    // State of primal variables + slacks for warm starts; slacks must
+    // be included because these are used in a reformulation of the
+    // problem to standard form
+    BAFlagVector<variableState> states(problemData.dims, problemData.ctx, PrimalVector);
+    //BAFlagVector<variableState> states;
+
+    // Push root node onto B&B tree/heap.
+    BranchAndBoundNode rootNode(objLB, lb, ub, states);
+    //if (0 == mype) cout << "Pushing root node onto B&B tree!\n";
+    heap.push(rootNode);
+    //if (0 == mype) cout << "Exiting B&B constructor!\n";
+
+  }
+
+  // Default destructor
+  ~BranchAndBoundTree() {}
+
 
   // Auxiliary functions for branching
   int getFirstStageMinIntInfeasCol(const denseBAVector& primalSoln) {
@@ -1048,7 +1114,7 @@ public:
     double lpObj = rootSolver.getObjective();
 
     /* Get warm start information from solver for B&B node..*/
-    BAFlagVector<variableState> states(dimsSlacks, ctx, PrimalVector);
+    BAFlagVector<variableState> states(problemData.dims, ctx, PrimalVector);
     rootSolver.getStates(states);
 
     // Lower (lb) and upper (ub) bounds for two child nodes:
@@ -1084,7 +1150,7 @@ public:
     double lpObj = rootSolver.getObjective();
 
     // Warm start information
-    BAFlagVector<variableState> states(dimsSlacks, ctx, PrimalVector);
+    BAFlagVector<variableState> states(problemData.dims, ctx, PrimalVector);
     rootSolver.getStates(states);
 
     // Lower (lb) and upper (ub) bounds for two child nodes:
@@ -1228,20 +1294,20 @@ public:
       /* Get top-most node and pop it off of heap. */
       if (0 == mype) cout << "Copying node " << ++nodeNumber << " off tree!\n";
       BranchAndBoundNode currentNode(heap.top());
-      //if (0 == mype) cout << "Popping node " << nodeNumber << " off tree!\n";
+      if (0 == mype) cout << "Popping node " << nodeNumber << " off tree!\n";
       heap.pop();
 
-      /* Set bounds of LP decision variables from BranchAndBoundNode */
-      if (0 == mype) cout << "Setting bounds for LP subproblem!\n";
-      rootSolver.setLB(currentNode.lb);
-      rootSolver.setUB(currentNode.ub);
-
-      /* Set information on basic/nonbasic variables for warm starting */
-      if (0 == mype) cout << "Setting warm start information!\n";
-      // Only set warm start states if not root node;
-      // trying to set the warm start states for the root node without
-      // a known basic feasible solution will crash PIPS-S.
-      if (nodeNumber > 1) {
+      if (nodeNumber > 1) { // Otherwise, this node isn't the root node of the B&B tree
+	// Set bounds of LP decision variables from BranchAndBoundNode
+	if (0 == mype) cout << "Setting bounds for LP subproblem!\n";
+	rootSolver.setLB(currentNode.lb);
+	rootSolver.setUB(currentNode.ub);
+      
+	// Set information on basic/nonbasic variables for warm starting
+	if (0 == mype) cout << "Setting warm start information!\n";
+	// Only set warm start states if not root node;
+	// trying to set the warm start states for the root node without
+	// a known basic feasible solution will crash PIPS-S.
 	rootSolver.setStates(currentNode.parentStates);
 	rootSolver.commitStates();
       }
@@ -1249,6 +1315,20 @@ public:
       /* Solve LP defined by current node*/
       if (0 == mype) cout << "Solving LP subproblem!\n";
       rootSolver.go();
+
+      /*
+      if (nodeNumber == 1) {
+	denseBAVector lb, ub;
+	lb.allocate(dims, ctx, PrimalVector);
+	ub.allocate(dims, ctx, PrimalVector);
+	lb.copyFrom(rootSolver.getBAData().l);
+	ub.copyFrom(rootSolver.getBAData().u);
+	BAFlagVector<variableState> states(dims, ctx, PrimalVector);
+	rootSolver.getStates(states);
+	BranchAndBoundNode newCurrentNode(objLB, lb, ub, states);
+	currentNode = newCurrentNode;
+      }
+      */
 
       /* Check solver status for infeasibility/optimality */
       solverState lpStatus = rootSolver.getStatus();
