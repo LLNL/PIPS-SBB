@@ -23,7 +23,6 @@ class Presolve {
 public:
 
   Presolve(BAData& _d, SMPSInput &input) : d(_d),
-					   input(input),
 					   ctx(_d.ctx),
 					   dims(input, ctx),
 					   dimsSlacks(dims),
@@ -91,7 +90,6 @@ private:
   // disallow copy assignment operator
   Presolve& operator=(const Presolve& p);
 
-  SMPSInput input;
   BAContext& ctx;
   BAData &d;
 
