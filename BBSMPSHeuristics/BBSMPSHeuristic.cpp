@@ -23,5 +23,5 @@ bool BBSMPSHeuristic::checkPeriodicity(BBSMPSNode* node){
 
 
 void BBSMPSHeuristic::printStatistics(){
-	BBSMPS_ALG_LOG_SEV(info)<<"Heuristic:"<<name<<":Times Called:"<<timesCalled<<":Times successful:"<<timesSuccessful<<":Execution Time:"<<cumulativeTime;
+	BBSMPS_ALG_LOG_SEV(summary)<<"Heuristic:"<<name<<":Times Called:"<<timesCalled<<":Times successful:"<<timesSuccessful<<":Execution Time:"<<cumulativeTime;
 }

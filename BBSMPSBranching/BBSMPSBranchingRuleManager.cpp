@@ -22,13 +22,13 @@ bool BBSMPSBranchingRuleManager::branch(BBSMPSNode * node, std::vector<BBSMPSNod
 
 
 void BBSMPSBranchingRuleManager::printStatistics(){
-	BBSMPS_ALG_LOG_SEV(info)<<"**************BRANCHING STATISTICS****************";
+	BBSMPS_ALG_LOG_SEV(summary)<<"**************BRANCHING STATISTICS****************";
 	std::multiset<BBSMPSBranchingRule*>::iterator it;
 	for (it=branchingRuleList.begin(); it!=branchingRuleList.end(); ++it){
 		BBSMPSBranchingRule *br=(*it);
 		br->printStatistics();
 	}
-	BBSMPS_ALG_LOG_SEV(info)<<"**************************************************";
+	BBSMPS_ALG_LOG_SEV(summary)<<"**************************************************";
 }
 
 void BBSMPSBranchingRuleManager::freeResources(){

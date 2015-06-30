@@ -34,15 +34,15 @@ bool BBSMPSHeuristicsManager::runHeuristics(BBSMPSNode* node,denseBAVector &LPRe
 }
 
 void BBSMPSHeuristicsManager::printStatistics(){
-	BBSMPS_ALG_LOG_SEV(info)<<"++++++++++++++HEURISTIC STATISTICS++++++++++++++++";
+	BBSMPS_ALG_LOG_SEV(summary)<<"++++++++++++++HEURISTIC STATISTICS++++++++++++++++";
 	double totalHeuristicTime=0;
 	for (int it=0;it<heuristicsList.size(); it++){
 		BBSMPSHeuristic *heur=heuristicsList[it];
 		heur->printStatistics();
 		totalHeuristicTime+=heur->getCumulativeTime();
 	}
-	BBSMPS_ALG_LOG_SEV(info)<<"Total Heuristic Cumulative Time:"<<totalHeuristicTime;
-	BBSMPS_ALG_LOG_SEV(info)<<"++++++++++++++++++++++++++++++++++++++++++++++++++";
+	BBSMPS_ALG_LOG_SEV(summary)<<"Total Heuristic Cumulative Time:"<<totalHeuristicTime;
+	BBSMPS_ALG_LOG_SEV(summary)<<"++++++++++++++++++++++++++++++++++++++++++++++++++";
 }
 
 void BBSMPSHeuristicsManager::freeResources(){

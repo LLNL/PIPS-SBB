@@ -35,8 +35,9 @@ int main(int argc, char **argv) {
 	}
 
 	// Set PIPS logging level.
+	
 	BBSMPSLogging::init_logging(1);
-
+	//PIPSLogging::init_logging(1	);
 
 	
         // Get SMPS file name and open SMPS file
@@ -55,28 +56,8 @@ int main(int argc, char **argv) {
 	BBSMPSTree bb(input);
 
 	bb.loadSimpleHeuristics();
-	bb.loadMIPHeuristics();
-	bb.setNodeLimit(500);
-	/*
-	// Solve deterministic LP formulation via dual simplex
-	PIPSSInterface solver(input, ctx, PIPSSInterface::useDual);
-
-	if (argc == 5) {
-		solver.loadStatus(argv[4]);
-	}
-
-	//solver.setDumpFrequency(5000,argv[3]);
-	solver.setPrimalTolerance(1e-6);
-	solver.setDualTolerance(1e-6);
-	solver.go();
-
-	// Write solution (if given enough input arguments)
-	if (argc >= 4 && argv[3][0] != '-') {
-		if (0 == mype) printf("Writing solution\n");
-		solver.writeStatus(argv[3]);
-		if (0 == mype) printf("Finished writing solution\n");
-	}
-	*/
+	//bb.loadMIPHeuristics();
+	bb.setNodeLimit(100);
 	
 	if (0 == mype) BBSMPS_ALG_LOG_SEV(info) <<"Calling branch-and-bound.";
 	bb.branchAndBound();

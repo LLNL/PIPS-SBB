@@ -77,7 +77,7 @@ verbosityActivated(true)
 	BBSMPSSolver::initialize(smps); 
 	double timeStampPreProc=MPI_Wtime();
 	PreProcessingTime=timeStampPreProc-timeStart;
-    //if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Calling B&B tree constructor.";
+    //if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(summary) << "Calling B&B tree constructor.";
 
     /* Initialize branch-and-bound tree/heap */
     // Get {lower, upper} bounds on decision variables, lower bound on objective function
@@ -111,18 +111,18 @@ verbosityActivated(true)
     rootSolver.go();
     LPRelaxationTime=MPI_Wtime()-timeStampPreProc;
     // Get lower & upper bounds on decision variables in LP.
-    //if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Getting bounds for root node from presolve.";
+    //if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(summary) << "Getting bounds for root node from presolve.";
     denseBAVector lb(rootSolver.getLB()), ub(rootSolver.getUB());
 
        // Allocate current best primal solution; normally this primal solution
     // is for the upper bound, but here, we have only the solution to an
     // LP relaxation, which may not be primal feasible. We don't check
     // primal/integer feasibility here.
-    //pwdif (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Allocating primal solution.";
+    //pwdif (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(summary) << "Allocating primal solution.";
     ubPrimalSolution.allocate(dimsSlacks, ctx, PrimalVector);
-    //if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Getting primal solution";
+    //if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(summary) << "Getting primal solution";
     ubPrimalSolution.copyFrom(rootSolver.getPrimalSolution());
-    //if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "MIP Primal solution updated"; 
+    //if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(summary) << "MIP Primal solution updated"; 
     BBSMPSSolver::instance()->setLPRelaxation(ubPrimalSolution);
     // Update state of primal variables + slacks; slacks must be included
     // because these are used in a reformulation of the problem to standard
@@ -138,9 +138,9 @@ verbosityActivated(true)
 
     BBSMPSNode *rootNode= new BBSMPSNode(lpObj,states);
 
-    //if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Pushing root node onto B&B tree.";
+    //if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(summary) << "Pushing root node onto B&B tree.";
     heap.push(rootNode);
-    //if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Exiting B&B constructor.";
+    //if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(summary) << "Exiting B&B constructor.";
 
     BBSMPSMaxFracBranchingRule *mfbr= new BBSMPSMaxFracBranchingRule(10);
     branchingRuleManager.addBranchingRule(mfbr);
@@ -171,7 +171,7 @@ verbosityActivated(true)
 	//This initialization assumes the solver class has already been intialized
 	assert(BBSMPSSolver::isInitialized());
 
-    //if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Calling B&B tree constructor.";
+    //if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(summary) << "Calling B&B tree constructor.";
 
     /* Initialize branch-and-bound tree/heap */
     // Get {lower, upper} bounds on decision variables, lower bound on objective function
@@ -189,9 +189,9 @@ verbosityActivated(true)
 
     BBSMPSNode *rootNode= new BBSMPSNode(node);
 
-    //if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Pushing root node onto B&B tree.";
+    //if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(summary) << "Pushing root node onto B&B tree.";
     heap.push(rootNode);
-    //if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Exiting B&B constructor.";
+    //if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(summary) << "Exiting B&B constructor.";
 
     BBSMPSMaxFracBranchingRule *mfbr= new BBSMPSMaxFracBranchingRule(10);
     branchingRuleManager.addBranchingRule(mfbr);
@@ -399,9 +399,9 @@ void BBSMPSTree::branchAndBound() {
 		}
 
 		/* Set bounds of LP decision variables from BBSMPSNode */
-		//if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Setting bounds for LP subproblem.";
-		//if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Parent objective of this node "<< currentNode_ptr->getParentObjective();
-		//if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Parent pointer of this node "<< (currentNode_ptr->getParentPtr()!=NULL);
+		//if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(summary) << "Setting bounds for LP subproblem.";
+		//if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(summary) << "Parent objective of this node "<< currentNode_ptr->getParentObjective();
+		//if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(summary) << "Parent pointer of this node "<< (currentNode_ptr->getParentPtr()!=NULL);
 
 		denseBAVector lb(BBSMPSSolver::instance()->getOriginalLB());
 		denseBAVector ub(BBSMPSSolver::instance()->getOriginalUB());
@@ -412,14 +412,14 @@ void BBSMPSTree::branchAndBound() {
 		rootSolver.setUB(ub);
 
 		/* Set information on basic/nonbasic variables for warm starting */
-		//if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Setting warm start information.";
+		//if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(summary) << "Setting warm start information.";
 		BAFlagVector<variableState> ps;
 		currentNode_ptr->getWarmStartState(ps);
 
 		rootSolver.setStates(ps);
 		rootSolver.commitStates();
 		/* Solve LP defined by current node*/
-		//if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Solving LP subproblem.";
+		//if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(summary) << "Solving LP subproblem.";
 		rootSolver.go();
 
 		/* Check solver status for infeasibility/optimality */
@@ -432,13 +432,13 @@ void BBSMPSTree::branchAndBound() {
 		if (0 == mype) outputLPStatus(lpStatus);
 
 		bool isLPinfeasible = (ProvenInfeasible == lpStatus); 
-		//if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "isLPinfeasible = " << isLPinfeasible;
+		//if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(summary) << "isLPinfeasible = " << isLPinfeasible;
 		bool isLPunbounded = (ProvenUnbounded == lpStatus);
-		//if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "isLPunbounded = " << isLPunbounded ;
+		//if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(summary) << "isLPunbounded = " << isLPunbounded ;
 		bool isLPoptimal = (Optimal == lpStatus);
-		//if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "isLPoptimal = " << isLPoptimal;
+		//if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(summary) << "isLPoptimal = " << isLPoptimal;
 		bool isLPother = (!isLPinfeasible && !isLPunbounded && !isLPoptimal);
-		//if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "isLPother = " << isLPother;
+		//if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(summary) << "isLPother = " << isLPother;
 		assert (!isLPother); // Error if not infeasible/unbounded/optimal
 
 		/* Fathom by infeasibility */
@@ -522,7 +522,7 @@ void BBSMPSTree::branchAndBound() {
 		}
 
 		/* Get primal solution */
-		//if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Getting primal solution...";
+		//if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(summary) << "Getting primal solution...";
 		denseBAVector primalSoln(rootSolver.getPrimalSolution());
 
 		
@@ -614,18 +614,18 @@ void BBSMPSTree::branchAndBound() {
 		if (0 == mype && verbosityActivated) {
 			double gap = fabs(objUB-objLB)*100/(fabs(objUB)+10e-10);
   		
-			BBSMPS_ALG_LOG_SEV(info)<<"\n----------------------------------------------------\n"<<
+			BBSMPS_ALG_LOG_SEV(summary)<<"\n----------------------------------------------------\n"<<
 			"Iteration "<<bbIterationCounter<<":LB:"<<objLB<<":UB:"<<objUB<<":GAP:"<<gap<<":Tree Size:"<<heap.size()<<"\n"<<
 			"----------------------------------------------------";
 		}
 	}
 
-//if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Objective function value = " << objUB ;
-//if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Objective function LB = " << objLB ;
+//if (0 == mype) BBSMPS_ALG_LOG_SEV(summary) << "Objective function value = " << objUB ;
+//if (0 == mype) BBSMPS_ALG_LOG_SEV(summary) << "Objective function LB = " << objLB ;
 	if (0 == mype && verbosityActivated) {
 		double gap = fabs(objUB-objLB)*100/(fabs(objUB)+10e-10);
   		
-		BBSMPS_ALG_LOG_SEV(info)<<"\n--------------EXPLORATION TERMINATED----------------\n"<<
+		BBSMPS_ALG_LOG_SEV(summary)<<"\n--------------EXPLORATION TERMINATED----------------\n"<<
 		"Iteration "<<bbIterationCounter<<":LB:"<<objLB<<":UB:"<<objUB<<":GAP:"<<gap<<":Tree Size:"<<heap.size()<<"\n"<<
 		":Nodes Fathomed:"<<nodesFathomed<<":Nodes with integer Solution:"<<nodesBecameInteger<<"\n"<<
 		"LP Relaxation Value:"<<LPRelaxationValue<<":LP Relaxation Time:"<<LPRelaxationTime<<":Preprocessing Time:"<<PreProcessingTime;
@@ -690,16 +690,16 @@ bool BBSMPSTree::retrieveBestSolution(BBSMPSSolution &solution){
   		if (s.getTimeOfDiscovery()<bestTime)bestTime=s.getTimeOfDiscovery();
   	}
 
-  		BBSMPS_ALG_LOG_SEV(info)<<"---------------SOLUTION STATISTICS----------------";
+  		BBSMPS_ALG_LOG_SEV(summary)<<"---------------SOLUTION STATISTICS----------------";
   		
-  		BBSMPS_ALG_LOG_SEV(info)<<"Solution Pool Size:"<<solutionPool.size()<<":Time To First Solution:"<<bestTime;
+  		BBSMPS_ALG_LOG_SEV(summary)<<"Solution Pool Size:"<<solutionPool.size()<<":Time To First Solution:"<<bestTime;
 	int itCounter=0;
 	for (std::multiset<BBSMPSSolution,solutionComparison>::iterator it=solutionPool.begin(); it!=solutionPool.end(); ++it){
   		BBSMPSSolution s = *it;
   		double solGap = fabs(s.getObjValue()-objLB)*100/(fabs(s.getObjValue())+10e-10);
-  		BBSMPS_ALG_LOG_SEV(info)<<"Solution:"<<itCounter<<":Solution Value:"<<s.getObjValue()<<":Time Of Discovery:"<<s.getTimeOfDiscovery()<<":Solution Gap:"<<solGap;
-	
+  		BBSMPS_ALG_LOG_SEV(summary)<<"Solution:"<<itCounter<<":Solution Value:"<<s.getObjValue()<<":Time Of Discovery:"<<s.getTimeOfDiscovery()<<":Solution Gap:"<<solGap;
+		itCounter++;
   	}
 	
-	BBSMPS_ALG_LOG_SEV(info)<<"--------------------------------------------------";
+	BBSMPS_ALG_LOG_SEV(summary)<<"--------------------------------------------------";
   }
