@@ -86,7 +86,7 @@ public:
 private:
   // disallow default, copy constructors
   Presolve();
-  Presolve(const Presolve& p); 
+  Presolve(const Presolve& p);
   // disallow copy assignment operator
   Presolve& operator=(const Presolve& p);
 
@@ -694,6 +694,22 @@ private:
 
   void presolveSyncFirstStage(bool &isMIPchanged) {
 
+    int errorFlag = 0;
+
+    // Detect infeasibilities and broadcast.
+    if(ProvenInfeasible == status) {
+      errorFlag = MPI_Bcast(&status, 1, MPI_INT, mype, ctx.comm());
+    }
+
+    // Note: Must separate this if statement from previous one because
+    // the first if statement does communication; if one rank detects
+    // infeasibility, it must be broadcast to all ranks. Then we test
+    // again on all ranks to return. If the return statement is combined
+    // into the previous if statement, there will be a bug because we
+    // will only return early on ranks that detect infeasibilities
+    // prior to broadcast, which is not the behavior we want.
+    if(ProvenInfeasible == status) return;
+
     denseBAVector &lb = d.l;
     denseBAVector &ub = d.u;
 
@@ -706,12 +722,12 @@ private:
     // TODO: Replace MPI_INT with MPI_LOGICAL all over the place.
 
     // Min-reduce first stage upper bounds over all ranks
-    int errorFlag = MPI_Allreduce(MPI_IN_PLACE,
-				  ub.getFirstStageVec().getPointer(),
-				  dimsSlacks.numFirstStageVars(),
-				  MPI_DOUBLE,
-				  MPI_MIN,
-				  ctx.comm());
+    errorFlag = MPI_Allreduce(MPI_IN_PLACE,
+			      ub.getFirstStageVec().getPointer(),
+			      dimsSlacks.numFirstStageVars(),
+			      MPI_DOUBLE,
+			      MPI_MIN,
+			      ctx.comm());
 
     // Max-reduce first stage lower bounds over all ranks
     errorFlag = MPI_Allreduce(MPI_IN_PLACE,
@@ -733,10 +749,7 @@ private:
     // NOTE: if a compiler is being a pain about warnings, just negate twice.
     isMIPchanged = static_cast<bool>(isChanged);
 
-    // Detect infeasibilities and broadcast.
-    if(ProvenInfeasible == status) {
-      errorFlag = MPI_Bcast(&status, 1, MPI_INT, mype, ctx.comm());
-    }
+
 
   }
 
