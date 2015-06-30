@@ -1,7 +1,7 @@
 #include "BBSMPSSolution.hpp"
 
-	BBSMPSSolution::BBSMPSSolution(const denseBAVector &_solutionVector, double _objValue):
-	objValue(_objValue){
+	BBSMPSSolution::BBSMPSSolution(const denseBAVector &_solutionVector, double _objValue,double _timeOfDiscovery):
+	objValue(_objValue),timeOfDiscovery(_timeOfDiscovery){
 		BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
     	BAContext &ctx=BBSMPSSolver::instance()->getBAContext();
     	solutionVector.allocate(dimsSlacks, ctx, PrimalVector);
@@ -13,7 +13,7 @@
 		BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
     	BAContext &ctx=BBSMPSSolver::instance()->getBAContext();
     	solutionVector.allocate(dimsSlacks, ctx, PrimalVector);
-		
+		timeOfDiscovery=-1;
 
 	}
 
@@ -34,3 +34,12 @@
 	double BBSMPSSolution::getObjValue()const{
 		return objValue;
 	}
+
+	double BBSMPSSolution::getTimeOfDiscovery() const{
+		return timeOfDiscovery;
+	}
+
+	void BBSMPSSolution::setTimeOfDiscovery(const double _timeOfDiscovery){
+	  timeOfDiscovery=_timeOfDiscovery;
+	}
+

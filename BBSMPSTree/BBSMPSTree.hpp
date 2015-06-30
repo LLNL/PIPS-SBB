@@ -118,6 +118,8 @@ public:
   void loadMIPHeuristics();
 
   void setVerbosity(bool verbose);
+
+  void printSolutionStatistics();
   BBSMPSNode* topOfHeap();
 
 private:
@@ -145,6 +147,9 @@ private:
   int tiLim;
 
   int nodeLim;
+  double LPRelaxationTime;
+  double PreProcessingTime;
+  double LPRelaxationValue;
 
   int nodesFathomed;
   int nodesBecameInteger;

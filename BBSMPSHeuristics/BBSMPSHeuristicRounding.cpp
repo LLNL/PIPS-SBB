@@ -5,6 +5,7 @@ using namespace std;
 
 bool BBSMPSHeuristicRounding::runHeuristic(BBSMPSNode* node, denseBAVector &LPRelaxationSolution, BBSMPSSolution &solution, double objUB){
 	
+		double startTimeStamp = MPI_Wtime();
 	int mype=BBSMPSSolver::instance()->getMype();
 	timesCalled++;
 	if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Performing the simple rounding heuristic.";
@@ -78,7 +79,7 @@ bool BBSMPSHeuristicRounding::runHeuristic(BBSMPSNode* node, denseBAVector &LPRe
 
 	if (0 == mype && success) BBSMPS_ALG_LOG_SEV(info) << "The simple rounding heuristic was successful.";
 		
-
+	cumulativeTime+=(MPI_Wtime()-startTimeStamp);
 	return success;
 
 }

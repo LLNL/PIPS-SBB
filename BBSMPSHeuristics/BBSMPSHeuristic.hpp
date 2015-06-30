@@ -29,15 +29,17 @@ public:
 	virtual bool shouldItRun(BBSMPSNode* node, denseBAVector &LPRelaxationSolution){return true;};
 	bool checkPeriodicity(BBSMPSNode* node);
 	virtual bool runHeuristic(BBSMPSNode* node, denseBAVector &LPRelaxationSolution, BBSMPSSolution &solution, double objUB){std::cout<<"Well, this is an error...\n";};
-
+	double getCumulativeTime(){return cumulativeTime;};
 	virtual void printStatistics();
 private:
 		int offset;
 		int depth;
 		std::string name;
+
 protected:
 		int timesCalled;
 		int timesSuccessful;
+		double cumulativeTime;
 
 };
 

@@ -20,17 +20,19 @@
 
 class BBSMPSSolution {
 public:
-	BBSMPSSolution(const denseBAVector &_solutionVector, double _objValue);
+	BBSMPSSolution(const denseBAVector &_solutionVector, double _objValue, double _timeOfDiscovery=-1);
 	BBSMPSSolution();
 	~BBSMPSSolution();
 	void setSolutionVector(const denseBAVector &_solutionVector);
 	void getSolutionVector(denseBAVector &_solutionVector);
 	void setObjValue(double _objValue);
 	double getObjValue() const;
+	double getTimeOfDiscovery() const;
+	void setTimeOfDiscovery(const double _timeOfDiscovery);
 private:
 	denseBAVector solutionVector;
 	double objValue;
-
+	double timeOfDiscovery;
 
 };
 

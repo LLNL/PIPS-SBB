@@ -65,6 +65,7 @@ objLB(-COIN_DBL_MAX),
 optGapTol(1e-6),
 lpPrimalTol(1e-6),
 lpDualTol(1e-6),
+timeStart(MPI_Wtime()),
 compTol(lpPrimalTol),
 status(LoadedFromFile),
 nodesel(BestBound),
@@ -74,7 +75,8 @@ verbosityActivated(true)
 {
 
 	BBSMPSSolver::initialize(smps); 
-
+	double timeStampPreProc=MPI_Wtime();
+	PreProcessingTime=timeStampPreProc-timeStart;
     //if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Calling B&B tree constructor.";
 
     /* Initialize branch-and-bound tree/heap */
@@ -105,9 +107,9 @@ verbosityActivated(true)
     // In addition, distributed data structures dictate some care in
     // how the assignments are performed: there must be checks to
     // ensure that the data to be assigned is owned by the "right" process.
-
+  
     rootSolver.go();
-
+    LPRelaxationTime=MPI_Wtime()-timeStampPreProc;
     // Get lower & upper bounds on decision variables in LP.
     //if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Getting bounds for root node from presolve.";
     denseBAVector lb(rootSolver.getLB()), ub(rootSolver.getUB());
@@ -131,6 +133,7 @@ verbosityActivated(true)
     // Update global lower bound; really need to check feasibility, etc.
     // here, but I'm going to move this code to the B&B tree.
     double lpObj = rootSolver.getObjective();
+    LPRelaxationValue=lpObj;
     if ((lpObj - compTol) >= objLB) objLB = lpObj;
 
     BBSMPSNode *rootNode= new BBSMPSNode(lpObj,states);
@@ -331,7 +334,7 @@ bool BBSMPSTree::isLPIntFeas(const denseBAVector& primalSoln) {
 
 void BBSMPSTree::branchAndBound() {
 
-	timeStart= MPI_Wtime();
+	
 
 	int mype=BBSMPSSolver::instance()->getMype();
 	PIPSSInterface &rootSolver= BBSMPSSolver::instance()->getPIPSInterface();
@@ -544,8 +547,8 @@ void BBSMPSTree::branchAndBound() {
 				if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Updating best upper bound to " << newUB ;
 				objUB = rootSolver.getObjective();
 				ubPrimalSolution.copyFrom(primalSoln);
-				BBSMPSSolution(rootSolver.getPrimalSolution(),newUB);
-				solutionPool.insert(BBSMPSSolution(rootSolver.getPrimalSolution(),newUB));
+				BBSMPSSolution(rootSolver.getPrimalSolution(),newUB, MPI_Wtime()-timeStart);
+				solutionPool.insert(BBSMPSSolution(rootSolver.getPrimalSolution(),newUB, MPI_Wtime()-timeStart));
 			}
 			currentNode_ptr->eliminate();
 			nodesBecameInteger++;
@@ -562,6 +565,7 @@ void BBSMPSTree::branchAndBound() {
 				heuristicSolutions[i].getSolutionVector(solVector);
 				if (heuristicSolutions[i].getObjValue()<objUB && isLPIntFeas(solVector)){
 					objUB=heuristicSolutions[i].getObjValue();
+					heuristicSolutions[i].setTimeOfDiscovery(MPI_Wtime()-timeStart);
 					solutionPool.insert(heuristicSolutions[i]);
 					status.setStatusToPrimalFeasible();
 				}
@@ -608,8 +612,10 @@ void BBSMPSTree::branchAndBound() {
 		}
 		bbIterationCounter++;
 		if (0 == mype && verbosityActivated) {
+			double gap = fabs(objUB-objLB)*100/(fabs(objUB)+10e-10);
+  		
 			BBSMPS_ALG_LOG_SEV(info)<<"\n----------------------------------------------------\n"<<
-			"Iteration "<<bbIterationCounter<<":LB:"<<objLB<<":UB:"<<objUB<<":Tree Size:"<<heap.size()<<"\n"<<
+			"Iteration "<<bbIterationCounter<<":LB:"<<objLB<<":UB:"<<objUB<<":GAP:"<<gap<<":Tree Size:"<<heap.size()<<"\n"<<
 			"----------------------------------------------------";
 		}
 	}
@@ -617,12 +623,17 @@ void BBSMPSTree::branchAndBound() {
 //if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Objective function value = " << objUB ;
 //if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Objective function LB = " << objLB ;
 	if (0 == mype && verbosityActivated) {
+		double gap = fabs(objUB-objLB)*100/(fabs(objUB)+10e-10);
+  		
 		BBSMPS_ALG_LOG_SEV(info)<<"\n--------------EXPLORATION TERMINATED----------------\n"<<
-		"Iteration "<<bbIterationCounter<<":LB:"<<objLB<<":UB:"<<objUB<<":Tree Size:"<<heap.size()<<"\n"<<
+		"Iteration "<<bbIterationCounter<<":LB:"<<objLB<<":UB:"<<objUB<<":GAP:"<<gap<<":Tree Size:"<<heap.size()<<"\n"<<
 		":Nodes Fathomed:"<<nodesFathomed<<":Nodes with integer Solution:"<<nodesBecameInteger<<"\n"<<
+		"LP Relaxation Value:"<<LPRelaxationValue<<":LP Relaxation Time:"<<LPRelaxationTime<<":Preprocessing Time:"<<PreProcessingTime;
+	
 		"----------------------------------------------------";
 		heuristicsManager.printStatistics();
 		branchingRuleManager.printStatistics();
+		printSolutionStatistics();
 	}
 	double t = MPI_Wtime() - timeStart;
 	if (0 == mype && verbosityActivated) {
@@ -667,4 +678,28 @@ bool BBSMPSTree::retrieveBestSolution(BBSMPSSolution &solution){
 
   void BBSMPSTree::setVerbosity(bool verbose){
   	verbosityActivated=verbose;
+  }
+
+  void BBSMPSTree::printSolutionStatistics(){
+
+
+  	double bestTime=COIN_DBL_MAX;
+
+  	for (std::multiset<BBSMPSSolution,solutionComparison>::iterator it=solutionPool.begin(); it!=solutionPool.end(); ++it){
+  		BBSMPSSolution s = *it;
+  		if (s.getTimeOfDiscovery()<bestTime)bestTime=s.getTimeOfDiscovery();
+  	}
+
+  		BBSMPS_ALG_LOG_SEV(info)<<"---------------SOLUTION STATISTICS----------------";
+  		
+  		BBSMPS_ALG_LOG_SEV(info)<<"Solution Pool Size:"<<solutionPool.size()<<":Time To First Solution:"<<bestTime;
+	int itCounter=0;
+	for (std::multiset<BBSMPSSolution,solutionComparison>::iterator it=solutionPool.begin(); it!=solutionPool.end(); ++it){
+  		BBSMPSSolution s = *it;
+  		double solGap = fabs(s.getObjValue()-objLB)*100/(fabs(s.getObjValue())+10e-10);
+  		BBSMPS_ALG_LOG_SEV(info)<<"Solution:"<<itCounter<<":Solution Value:"<<s.getObjValue()<<":Time Of Discovery:"<<s.getTimeOfDiscovery()<<":Solution Gap:"<<solGap;
+	
+  	}
+	
+	BBSMPS_ALG_LOG_SEV(info)<<"--------------------------------------------------";
   }

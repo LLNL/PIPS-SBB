@@ -6,7 +6,7 @@ using namespace std;
 bool BBSMPSHeuristicRINS::runHeuristic(BBSMPSNode* node, denseBAVector &nodeSolution, BBSMPSSolution &solution, double objUB){
 	
 	//Steps for the heuristic
-
+		double startTimeStamp = MPI_Wtime();
 	//Retrieve relaxation
 
 	const denseBAVector &LPrelaxation=BBSMPSSolver::instance()->getLPRelaxation();
@@ -73,7 +73,7 @@ bool BBSMPSHeuristicRINS::runHeuristic(BBSMPSNode* node, denseBAVector &nodeSolu
 	timesCalled++;
 	timesSuccessful+=(success);
 
-
+	cumulativeTime+=(MPI_Wtime()-startTimeStamp);
 	return success;
 
 }

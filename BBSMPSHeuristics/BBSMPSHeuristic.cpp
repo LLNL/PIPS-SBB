@@ -8,6 +8,7 @@ BBSMPSHeuristic::BBSMPSHeuristic(int _offset, int _depth, const char *_name){
 	timesCalled=0;
 	name=_name;
 	timesSuccessful=0;
+	cumulativeTime=0;
 }
 BBSMPSHeuristic::~BBSMPSHeuristic(){};
 
@@ -22,5 +23,5 @@ bool BBSMPSHeuristic::checkPeriodicity(BBSMPSNode* node){
 
 
 void BBSMPSHeuristic::printStatistics(){
-	BBSMPS_ALG_LOG_SEV(info)<<"Heuristic:"<<name<<":Times Called:"<<timesCalled<<":Times successful:"<<timesSuccessful;
+	BBSMPS_ALG_LOG_SEV(info)<<"Heuristic:"<<name<<":Times Called:"<<timesCalled<<":Times successful:"<<timesSuccessful<<":Execution Time:"<<cumulativeTime;
 }
