@@ -339,10 +339,10 @@ private:
 			  denseVector &colUB,
 			  const denseFlagVector<bool> &isVarBinary,
 			  const CoinShallowPackedVector &currentRow,
-			  const double &Lmax,
-			  const double &Lmin,
-			  const double &rowLB,
-			  const double &rowUB) {
+			  double Lmax,
+			  double Lmin,
+			  double rowLB,
+			  double rowUB) {
     bool isMIPchanged = false;
 
     /*
