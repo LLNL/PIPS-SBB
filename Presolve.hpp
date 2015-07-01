@@ -232,6 +232,7 @@ private:
   // TODO: Figure out way to keep # of args to 7 or less.
   bool tightenColBoundsByRow(denseVector &colLB,
 			     denseVector &colUB,
+			     const denseFlagVector<bool> &isVarInteger,
 			     const denseFlagVector<bool> &isVarBinary,
 			     const CoinShallowPackedVector &currentRow,
 			     double Lmax,
@@ -247,7 +248,8 @@ private:
     // Bound improvement/fixing binary variables/improving binary coeffs
     for (int j = 0; j < currentRowSize; j++) {
       const int col = ptrToIdx[j];
-      const bool isBinary = isVarBinary[col];
+      const bool isInteger = isVarInteger[col];
+      const bool isBin = isVarBinary[col]; //TODO: Improve name; isBinary taken
       double coeff = ptrToElts[j];
       bool isCoeffPositive = (coeff > 0); // Note: only nonzero coeffs stored
       bool isCoeffNegative = (coeff < 0);
@@ -265,7 +267,7 @@ private:
       // of coefficient terms are flipped because Savelsbergh assumes all
       // coefficients are positive in his paper.
 
-      if (isBinary) { // binary fixing
+      if (isBin) { // binary fixing
 	// Use abs value of coefficient because Savelsbergh assumes all
 	// coefficients positive.
 
@@ -322,7 +324,7 @@ private:
 	// If assertions in this scope are tripped, check for overflow
 	// issues.
 
-	// Lmin-derived lower bounds -- in Savelsberg, Section 1.1.
+	// Lmin-derived bounds -- in Savelsberg, Section 1.1.
 	// These expressions both come straight from Savelsbergh's summary
 	// in Section 1.3, under "Improvement of bounds".
 	if (isCoeffPositive) {
@@ -350,7 +352,7 @@ private:
 	  }
 	}
 
-	// Lmax-derived lower bounds -- by analogy to Savelsberg, Section 1.1
+	// Lmax-derived bounds -- by analogy to Savelsberg, Section 1.1
 	// These expressions both come from Savelsbergh's summary
 	// in Section 1.3, under "Improvement of bounds"; the modifications
 	// are to flip lower bounds to upper bounds and Lmin to Lmax.
@@ -402,7 +404,7 @@ private:
 
     for (int j = 0; j < currentRowSize; j++) {
       const int col = ptrToIdx[j];
-      const bool isBinary = isVarBinary[col];
+      const bool isBin = isVarBinary[col];
       double coeff = ptrToElts[j];
       bool isCoeffPositive = (coeff > 0); // Note: only nonzero coeffs stored
       bool isCoeffNegative = (coeff < 0);
@@ -413,7 +415,7 @@ private:
       // Note: This code cannot currently work as written, because
       // PIPSInterface.d (e.g., rootSolver.d) is a protected member, and
       // thus cannot be written to at the moment.
-      if(isBinary) {
+      if(isBin) {
       // Maximum and minimum possible values for inequality in this row
       // after discarding all other inequalities
       double rowMax = Lmax - abs(coeff);
@@ -585,6 +587,7 @@ private:
       // Improve bounds and fix binary variables in first stage.
       isMIPchanged = tightenColBoundsByRow(lb.getFirstStageVec(),
 					   ub.getFirstStageVec(),
+					   isColInteger.getFirstStageVec(),
 					   isColBinary.getFirstStageVec(),
 					   currentRow,
 					   Lmax,
@@ -718,6 +721,7 @@ private:
       // Tighten first stage column bounds using row of T matrix
       isMIPchanged = tightenColBoundsByRow(lb.getFirstStageVec(),
 					   ub.getFirstStageVec(),
+					   isColInteger.getFirstStageVec(),
 					   isColBinary.getFirstStageVec(),
 					   currentTrow,
 					   Lmax,
@@ -729,6 +733,7 @@ private:
       // Tighten second stage column bounds using row of W matrix
       isMIPchanged = tightenColBoundsByRow(lb.getSecondStageVec(scen),
 					   ub.getSecondStageVec(scen),
+					   isColInteger.getSecondStageVec(scen),
 					   isColBinary.getSecondStageVec(scen),
 					   currentWrow,
 					   Lmax,
