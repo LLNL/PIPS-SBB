@@ -172,6 +172,21 @@ private:
     return (isZero(colLB, tol) && isOne(colUB, tol));
   }
 
+  // TODO: Move utility functions fracPart & isIntFeas to central location
+  // TODO: Eliminate duplication of these functions in PIPS-SBB B&B tree
+  // Returns "fractional part" of x
+  // Should always be nonnegative.
+  double fracPart(double x) {
+    return min(x - floor(x), ceil(x) - x);
+  }
+
+  // Returns true if "x" is integer feasible up to tolerance "tol"
+  bool isIntFeas(double x, double tol) {
+    // Alternate method of calculation, useful for benchmarking, unit tests
+    //    return ( (abs(floor(x) - x) <= tol) || (abs(ceil(x) - x) <= tol) );
+    return (fracPart(x) <= tol);
+  }
+
   double overflowSafeAdd(double x, double y) {
     bool isSameSign = ((x < 0.0) == (y < 0.0));
     bool isMagnitudeOverflow =
@@ -390,7 +405,15 @@ private:
 
 	// TODO: Improve variable bounds by rounding for integer-valued variables
 	if(isInteger) {
-
+	  if(!isIntFeas(varLB, intTol)) {
+	    varLB = ceil(varLB);
+	    isMIPchanged = true;
+	  }
+	  if(!isIntFeas(varUB, intTol)) {
+	    varUB = floor(varUB);
+	    isMIPchanged = true;
+	  }
+	}
       }
     }
     return isMIPchanged;
