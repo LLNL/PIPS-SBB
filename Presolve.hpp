@@ -28,7 +28,8 @@ public:
 					   dimsSlacks(dims),
 					   mype(ctx.mype()),
 					   status(LoadedFromFile),
-					   intTol(1e-6) {
+					   intTol(1e-6),
+					   eqTol(1e-6) {
 
     // Prior to presolve, determine if a given variable & scenario is binary,
     // or integer
@@ -130,9 +131,12 @@ private:
   BADimensionsSlacks dimsSlacks;
   int mype;
 
-  // Integrality tolerance
   // TODO: Must centralize these solver settings somewhere
+  // Integrality tolerance
   double intTol;
+
+  // Floating point equality tolerance
+  double eqTol;
 
 public:
   solverState status;
@@ -153,6 +157,9 @@ private:
     }
   }
 
+  // TODO: isZero, isOne, and isBinary are utility methods that should be
+  // migrated to a utilities class/namespace. (These functions were given
+  // 2 args for flexibility and ease of refactoring.)
   bool isZero(double x, double tol) {
     return (fabs(x) <= tol);
   }
@@ -260,7 +267,7 @@ private:
       if (!isCoeffPositive && !isCoeffNegative) continue;
 
       // If variable bounds are fixed and equal, bounds cannot be improved.
-      bool isFixed = (varUB == varLB);
+      bool isFixed = (fabs(varUB - varLB) < eqTol);
       if (isFixed) continue;
 
       // Bound improvement setup steps; note: for valid lower bound, signs
@@ -382,6 +389,8 @@ private:
 	}
 
 	// TODO: Improve variable bounds by rounding for integer-valued variables
+	if(isInteger) {
+
       }
     }
     return isMIPchanged;
