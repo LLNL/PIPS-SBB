@@ -34,7 +34,7 @@
 #include "PIPSSInterface.hpp"
 #include "BBSMPSNode.hpp"
 #include "Presolve.hpp"
-
+#include "BBSMPSLogging.hpp"
 class BBSMPSSolver {
 
 public:
@@ -52,7 +52,7 @@ public:
   static BBSMPSSolver *instance();
   static BBSMPSSolver *initialize(const SMPSInput &_input);
   static bool isInitialized();
-
+  void printPresolveStatistics();
 
 protected:
 

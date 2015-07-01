@@ -611,10 +611,10 @@ void BBSMPSTree::branchAndBound() {
 
 		}
 		bbIterationCounter++;
-		if (0 == mype && verbosityActivated) {
-			double gap = fabs(objUB-objLB)*100/(fabs(objUB)+10e-10);
+		if (0 == mype && verbosityActivated && bbIterationCounter%100==0) {
+			double gap = fabs(objUB-objLB)*100/(fabs(objLB)+10e-10);
   		
-			BBSMPS_ALG_LOG_SEV(summary)<<"\n----------------------------------------------------\n"<<
+			BBSMPS_ALG_LOG_SEV(warning)<<"\n----------------------------------------------------\n"<<
 			"Iteration "<<bbIterationCounter<<":LB:"<<objLB<<":UB:"<<objUB<<":GAP:"<<gap<<":Tree Size:"<<heap.size()<<"\n"<<
 			"----------------------------------------------------";
 		}
@@ -623,9 +623,9 @@ void BBSMPSTree::branchAndBound() {
 //if (0 == mype) BBSMPS_ALG_LOG_SEV(summary) << "Objective function value = " << objUB ;
 //if (0 == mype) BBSMPS_ALG_LOG_SEV(summary) << "Objective function LB = " << objLB ;
 	if (0 == mype && verbosityActivated) {
-		double gap = fabs(objUB-objLB)*100/(fabs(objUB)+10e-10);
+		double gap = fabs(objUB-objLB)*100/(fabs(objLB)+10e-10);
   		
-		BBSMPS_ALG_LOG_SEV(summary)<<"\n--------------EXPLORATION TERMINATED----------------\n"<<
+		BBSMPS_ALG_LOG_SEV(warning)<<"\n--------------EXPLORATION TERMINATED----------------\n"<<
 		"Iteration "<<bbIterationCounter<<":LB:"<<objLB<<":UB:"<<objUB<<":GAP:"<<gap<<":Tree Size:"<<heap.size()<<"\n"<<
 		":Nodes Fathomed:"<<nodesFathomed<<":Nodes with integer Solution:"<<nodesBecameInteger<<"\n"<<
 		"LP Relaxation Value:"<<LPRelaxationValue<<":LP Relaxation Time:"<<LPRelaxationTime<<":Preprocessing Time:"<<PreProcessingTime;
@@ -634,10 +634,11 @@ void BBSMPSTree::branchAndBound() {
 		heuristicsManager.printStatistics();
 		branchingRuleManager.printStatistics();
 		printSolutionStatistics();
+		BBSMPSSolver::instance()->printPresolveStatistics();
 	}
 	double t = MPI_Wtime() - timeStart;
 	if (0 == mype && verbosityActivated) {
-		BBSMPS_APP_LOG_SEV(summary)<<boost::format("Branch and Bound took %f seconds") % t;
+		BBSMPS_APP_LOG_SEV(warning)<<boost::format("Branch and Bound took %f seconds") % t;
 	}
 }
 
@@ -659,16 +660,16 @@ bool BBSMPSTree::retrieveBestSolution(BBSMPSSolution &solution){
 
 
   void BBSMPSTree::loadSimpleHeuristics(){
-  	BBSMPSHeuristicRounding *hr= new BBSMPSHeuristicRounding(1,1,"SimpleRounding");
+  	BBSMPSHeuristicRounding *hr= new BBSMPSHeuristicRounding(1,25,"SimpleRounding");
     heuristicsManager.addHeuristic(hr);
   }
 
   void BBSMPSTree::loadMIPHeuristics(){
-  	BBSMPSHeuristicRINS *hr= new BBSMPSHeuristicRINS(1,5,"RINS",200);
-	BBSMPSHeuristicRENS *hr2= new BBSMPSHeuristicRENS(1,5,"RENS",200);
+  	BBSMPSHeuristicRINS *hr= new BBSMPSHeuristicRINS(1,50,"RINS",50);
+	//BBSMPSHeuristicRENS *hr2= new BBSMPSHeuristicRENS(1,50,"RENS",50);
 
     heuristicsManager.addHeuristic(hr);
-    heuristicsManager.addHeuristic(hr2);
+   // heuristicsManager.addHeuristic(hr2);
   }
 
   BBSMPSNode* BBSMPSTree::topOfHeap(){
@@ -690,16 +691,17 @@ bool BBSMPSTree::retrieveBestSolution(BBSMPSSolution &solution){
   		if (s.getTimeOfDiscovery()<bestTime)bestTime=s.getTimeOfDiscovery();
   	}
 
-  		BBSMPS_ALG_LOG_SEV(summary)<<"---------------SOLUTION STATISTICS----------------";
+  		BBSMPS_ALG_LOG_SEV(warning)<<"---------------SOLUTION STATISTICS----------------";
   		
-  		BBSMPS_ALG_LOG_SEV(summary)<<"Solution Pool Size:"<<solutionPool.size()<<":Time To First Solution:"<<bestTime;
+  		BBSMPS_ALG_LOG_SEV(warning)<<"Solution Pool Size:"<<solutionPool.size()<<":Time To First Solution:"<<bestTime;
 	int itCounter=0;
 	for (std::multiset<BBSMPSSolution,solutionComparison>::iterator it=solutionPool.begin(); it!=solutionPool.end(); ++it){
   		BBSMPSSolution s = *it;
-  		double solGap = fabs(s.getObjValue()-objLB)*100/(fabs(s.getObjValue())+10e-10);
-  		BBSMPS_ALG_LOG_SEV(summary)<<"Solution:"<<itCounter<<":Solution Value:"<<s.getObjValue()<<":Time Of Discovery:"<<s.getTimeOfDiscovery()<<":Solution Gap:"<<solGap;
+  		double solGap = fabs(s.getObjValue()-objLB)*100/(fabs(objLB)+10e-10);
+  		BBSMPS_ALG_LOG_SEV(warning)<<"Solution:"<<itCounter<<":Solution Value:"<<s.getObjValue()<<":Time Of Discovery:"<<s.getTimeOfDiscovery()<<":Solution Gap:"<<solGap;
 		itCounter++;
   	}
 	
-	BBSMPS_ALG_LOG_SEV(summary)<<"--------------------------------------------------";
+	BBSMPS_ALG_LOG_SEV(warning)<<"--------------------------------------------------";
   }
+

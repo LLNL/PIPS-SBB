@@ -72,4 +72,15 @@ bool BBSMPSSolver::isInitialized(){
 }
 
 
+void BBSMPSSolver::printPresolveStatistics(){
+
+
+  BBSMPS_ALG_LOG_SEV(warning)<<"~~~~~~~~~~~~~~~PRESOLVE STATISTICS~~~~~~~~~~~~~~~~";
+  BBSMPS_ALG_LOG_SEV(warning)<<"Number Of Presolves:"<<pre.numPresolves<<":Number Of Bound Chgs:"<<pre.numBdsChg;
+  BBSMPS_ALG_LOG_SEV(warning)<<"Number Of RHS Chgs:"<<pre.numRhsChg<<":Number Of Coefficient Chgs:"<<pre.numCoeffChg;
+    
+    
+
+BBSMPS_ALG_LOG_SEV(warning)<<"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~";
+}
 

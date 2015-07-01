@@ -22,51 +22,51 @@ using namespace std;
 int main(int argc, char **argv) {
 
         // Initialize MPI
-	MPI_Init(&argc, &argv);
+  MPI_Init(&argc, &argv);
 
         // Get MPI process rank
-	int mype;
-	MPI_Comm_rank(MPI_COMM_WORLD,&mype);
+  int mype;
+  MPI_Comm_rank(MPI_COMM_WORLD,&mype);
 
         // Help information if not enough arguments
-	if (argc < 2) {
-		if (0 == mype) printf("Usage: %s [SMPS root name]\n",argv[0]);
-		return 1;
-	}
+  if (argc < 2) {
+    if (0 == mype) printf("Usage: %s [SMPS root name]\n",argv[0]);
+    return 1;
+  }
 
-	// Set PIPS logging level.
-	
-	BBSMPSLogging::init_logging(1);
-	//PIPSLogging::init_logging(1	);
+  // Set PIPS logging level.
+  
+  BBSMPSLogging::init_logging(3);
+  //PIPSLogging::init_logging(1 );
 
-	
+  
         // Get SMPS file name and open SMPS file
-	string smpsrootname(argv[1]);
+  string smpsrootname(argv[1]);
 
-	if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Reading SMPS input.";
-	SMPSInput input(smpsrootname+".cor",smpsrootname+".tim",smpsrootname+".sto");
+  if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Reading SMPS input.";
+  SMPSInput input(smpsrootname+".cor",smpsrootname+".tim",smpsrootname+".sto");
 
-	//scoped_ptr<SMPSInput> s(new SMPSInput(datarootname,nscen));
+  //scoped_ptr<SMPSInput> s(new SMPSInput(datarootname,nscen));
 
         // Pass communicator to block angular data structures for data distribution
-	BAContext ctx(MPI_COMM_WORLD);
+  BAContext ctx(MPI_COMM_WORLD);
 
-	// Initialize branch-and-bound tree
-	if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Initializing branch-and-bound tree.";
-	BBSMPSTree bb(input);
+  // Initialize branch-and-bound tree
+  if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Initializing branch-and-bound tree.";
+  BBSMPSTree bb(input);
 
-	bb.loadSimpleHeuristics();
-	//bb.loadMIPHeuristics();
-	bb.setNodeLimit(100);
-	
-	if (0 == mype) BBSMPS_ALG_LOG_SEV(info) <<"Calling branch-and-bound.";
-	bb.branchAndBound();
+  bb.loadSimpleHeuristics();
+  bb.loadMIPHeuristics();
+  bb.setTimeLimit(3600*15);
+  //bb.setNodeLimit(5000);
+  if (0 == mype) BBSMPS_ALG_LOG_SEV(info) <<"Calling branch-and-bound.";
+  bb.branchAndBound();
 
 
-	if (0 == mype) BBSMPS_APP_LOG_SEV(info) <<"Application successfully terminated.";
-	// Clean up MPI data structures
-	MPI_Finalize();
+  if (0 == mype) BBSMPS_APP_LOG_SEV(info) <<"Application successfully terminated.";
+  // Clean up MPI data structures
+  MPI_Finalize();
 
-	return 0;
+  return 0;
 }
 

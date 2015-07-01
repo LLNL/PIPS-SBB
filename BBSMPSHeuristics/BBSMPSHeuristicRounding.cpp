@@ -5,7 +5,7 @@ using namespace std;
 
 bool BBSMPSHeuristicRounding::runHeuristic(BBSMPSNode* node, denseBAVector &LPRelaxationSolution, BBSMPSSolution &solution, double objUB){
 	
-		double startTimeStamp = MPI_Wtime();
+	double startTimeStamp = MPI_Wtime();
 	int mype=BBSMPSSolver::instance()->getMype();
 	timesCalled++;
 	if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Performing the simple rounding heuristic.";
@@ -99,7 +99,45 @@ bool BBSMPSHeuristicRounding::shouldItRun(BBSMPSNode* node, denseBAVector &LPRel
 		
 	}
 	
+	int numberOfFractionalVariables2=0;
+	int nIntVars2=0;
+
+	
+	for (int scen = 0; scen < input.nScenarios(); scen++)
+	{
+		if(ctx.assignedScenario(scen)) {
+			for (int col = 0; col < input.nSecondStageVars(scen); col++)
+			{
+
+				if(input.isSecondStageColInteger(scen,col)){
+					numberOfFractionalVariables2+=(!isIntFeas(LPRelaxationSolution.getSecondStageVec(scen)[col],intTol));
+					nIntVars2++;
+					
+				}
+			}
+		}
+	}
+
+	int totalCount2;
+	int errorFlag = MPI_Allreduce(&numberOfFractionalVariables2,
+		&totalCount2,
+		1,
+		MPI_INT, 
+		MPI_SUM,
+		ctx.comm());
+
+	int totalIntVars2;
+	errorFlag = MPI_Allreduce(&nIntVars2,
+		&totalIntVars2,
+		1,
+		MPI_INT, 
+		MPI_SUM,
+		ctx.comm());
+
+
+	nIntVars+=totalIntVars2;
+	numberOfFractionalVariables=+totalCount2;
 	if (nIntVars==0)return false;
-	return ((numberOfFractionalVariables*100/nIntVars)<25);
+	return ((numberOfFractionalVariables*100/nIntVars)<25 );
 
 }

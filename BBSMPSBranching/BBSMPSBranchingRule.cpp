@@ -19,5 +19,5 @@ void BBSMPSBranchingRule::setPriority(int _priority){
 }
 
 void BBSMPSBranchingRule::printStatistics(){
-	BBSMPS_ALG_LOG_SEV(summary)<<"Branching Rule:"<<name<<":Times Called:"<<timesCalled<<":Times successful:"<<timesSuccessful;
+	BBSMPS_ALG_LOG_SEV(warning)<<"Branching Rule:"<<name<<":Times Called:"<<timesCalled<<":Times successful:"<<timesSuccessful;
 }

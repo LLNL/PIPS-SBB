@@ -89,12 +89,13 @@ bool BBSMPSHeuristicRINS::shouldItRun(BBSMPSNode* node, denseBAVector &nodeSolut
 		if(input.isFirstStageColInteger(col)){
 			double LPRValue=LPrelaxation.getFirstStageVec()[col];
 			double solValue=nodeSolution.getFirstStageVec()[col];
-			if (fabs(LPRValue-solValue)>intTol && isIntFeas(solValue,intTol)){//Then we fix the variable
+			if (fabs(LPRValue-solValue)>intTol || !isIntFeas(solValue,intTol)){//Then we free the variable
 				numberOfFreeVars++;
 			}
 			
 		}
 	}
+	int numberOfFreeVars2=0;
 	BAContext &ctx= BBSMPSSolver::instance()->getBAContext();
 	for (int scen = 0; scen < input.nScenarios(); scen++)
 	{
@@ -105,21 +106,21 @@ bool BBSMPSHeuristicRINS::shouldItRun(BBSMPSNode* node, denseBAVector &nodeSolut
 				if(input.isSecondStageColInteger(scen,col)){
 					double LPRValue=LPrelaxation.getFirstStageVec()[col];
 					double solValue=nodeSolution.getFirstStageVec()[col];
-					if (fabs(LPRValue-solValue)>intTol && isIntFeas(solValue,intTol)){//Then we fix the variable
-						numberOfFreeVars++;
+					if (fabs(LPRValue-solValue)>intTol || !isIntFeas(solValue,intTol)){//Then we fix the variable
+						numberOfFreeVars2++;
 					}
 				}
 			}
 		}
 	}
 
-	int minCount;
-	int errorFlag = MPI_Allreduce(&numberOfFreeVars,
-		&minCount,
+	int count;
+	int errorFlag = MPI_Allreduce(&numberOfFreeVars2,
+		&count,
 		1,
 		MPI_INT, 
-		MPI_MIN,
+		MPI_SUM,
 		ctx.comm());
-
-	return (minCount<40);
+	count+=numberOfFreeVars;
+	return (count<nodeLim);
 }
