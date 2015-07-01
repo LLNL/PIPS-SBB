@@ -27,18 +27,50 @@ public:
 					   dims(input, ctx),
 					   dimsSlacks(dims),
 					   mype(ctx.mype()),
-					   status(LoadedFromFile) {
+					   status(LoadedFromFile),
+					   intTol(1e-6) {
 
-    // Prior to presolve, determine if a given variable & scenario is binary.
+    // Prior to presolve, determine if a given variable & scenario is binary,
+    // or integer
+    isColInteger.allocate(d.dims, d.ctx, PrimalVector);
     isColBinary.allocate(d.dims, d.ctx, PrimalVector);
+
     for (int col = 0; col < input.nFirstStageVars(); col++) {
-      isColBinary.getFirstStageVec()[col] = input.isFirstStageColInteger(col);
+      // Use SMPS input file to determine if variable is integer
+      isColInteger.getFirstStageVec()[col] = input.isFirstStageColInteger(col);
+
+      // If variable is not integer, it cannot be binary
+      if(!isColInteger.getFirstStageVec()[col]) {
+	isColBinary.getFirstStageVec()[col] = false;
+      }
+      // Otherwise, variable is integer; test bounds to determine if binary
+      else {
+	double colLB = d.l.getFirstStageVec()[col];
+	double colUB = d.u.getFirstStageVec()[col];
+	isColBinary.getFirstStageVec()[col] = isBinary(colLB, colUB, intTol);
+      }
     }
+
+    // TODO: Fix deep nesting, perhaps by iterating over localScenarios
+    // instead of using if(ctx.assignedScenario(scen)) idiom.
     for (int scen = 0; scen < input.nScenarios(); scen++) {
       if(ctx.assignedScenario(scen)) {
 	for (int col = 0; col < input.nSecondStageVars(scen); col++) {
-	  isColBinary.getSecondStageVec(scen)[col] =
-	    input.isSecondStageColInteger(scen,col);
+	  // Use SMPS input file to determine if variable is integer
+	  isColInteger.getSecondStageVec(scen)[col] =
+	    input.isSecondStageColInteger(scen, col);
+
+	  // If variable is not integer, it cannot be binary
+	  if(!isColInteger.getSecondStageVec(scen)[col]) {
+	    isColBinary.getSecondStageVec(scen)[col] = false;
+	  }
+	  // Otherwise, variable is integer; test bounds to determine if binary
+	  else {
+	    double colLB = d.l.getSecondStageVec(scen)[col];
+	    double colUB = d.u.getSecondStageVec(scen)[col];
+	    isColBinary.getSecondStageVec(scen)[col] =
+	      isBinary(colLB, colUB, intTol);
+	  }
 	}
       }
     }
@@ -98,12 +130,18 @@ private:
   BADimensionsSlacks dimsSlacks;
   int mype;
 
+  // Integrality tolerance
+  // TODO: Must centralize these solver settings somewhere
+  double intTol;
+
 public:
   solverState status;
 
 private:
-  // TODO: Move this field into something like BAMIPData, etc.
-  BAFlagVector<bool> isColBinary; // stores whether a given variable is binary
+  // TODO: Move these fields into something like BAMIPData, etc.
+  // Vectors that store whether given variable is binary, integer
+  BAFlagVector<bool> isColInteger;
+  BAFlagVector<bool> isColBinary;
 
   // TODO: Dirty hack. Must refactor status into a class that is a state
   // machine.
@@ -113,6 +151,18 @@ private:
     if (isInReachableState) {
       status = ProvenInfeasible;
     }
+  }
+
+  bool isZero(double x, double tol) {
+    return (fabs(x) <= tol);
+  }
+
+  bool isOne(double x, double tol) {
+    return isZero(1 - x, tol);
+  }
+
+  bool isBinary(double colLB, double colUB, double tol) {
+    return (isZero(colLB, tol) && isOne(colUB, tol));
   }
 
   double overflowSafeAdd(double x, double y) {
