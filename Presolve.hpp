@@ -84,14 +84,14 @@ public:
     while(true) {
       numPresolves++;
       bool isMIPchanged = false;
-      if(0 == mype) cout << "First stage presolve iteration "
+      if(0 == mype) PIPS_ALG_LOG_SEV(info) << "First stage presolve iteration "
 			 << numPresolves << endl;
       isMIPchanged = presolveFirstStage() || isMIPchanged;
 
       // Stop presolve if infeasiblility detected after 1st stage presolve.
       if (ProvenInfeasible == status) break;
 
-      if(0 == mype) cout << "Second stage presolve iteration "
+      if(0 == mype) PIPS_ALG_LOG_SEV(info) << "Second stage presolve iteration "
 			 << numPresolves << endl;
       for (int scen = 0; scen < input.nScenarios(); scen++) {
 	if(ctx.assignedScenario(scen)) {
@@ -101,7 +101,7 @@ public:
       }
 
       // Synchronize first stage information and isMIPchanged via reductions.
-      if(0 == mype) cout << "Presolve sync iteration "
+      if(0 == mype) PIPS_ALG_LOG_SEV(info) << "Presolve sync iteration "
 			 << numPresolves << endl;
       presolveSyncFirstStage(isMIPchanged);
 
@@ -115,7 +115,8 @@ public:
       if(numPresolves > 100) break;
     }
 
-    if (0 == mype) cout << "There were " << numPresolves << " presolves.\n";
+    if (0 == mype) PIPS_ALG_LOG_SEV(info) << "There were "
+					  << numPresolves << " presolves.\n";
 
   }
 
@@ -224,12 +225,12 @@ private:
 
       // TODO(oxberry1@llnl.gov): Make this code logging code.
       if (0 == mype) {
-	cout << "LB of scen " << scen << ", col " << col
-	     << " = " << colLB[col] << endl;
-	cout << "UB of scen " << scen << ", col " << col
-	     << " = " << colUB[col] << endl;
-	cout << "coeff of scen " << scen << ", col " << col
-	     << " = " << coeff << endl;
+	PIPS_ALG_LOG_SEV(debug) << "LB of scen " << scen << ", col " << col
+				<< " = " << colLB[col] << endl;
+	PIPS_ALG_LOG_SEV(debug) << "UB of scen " << scen << ", col " << col
+				<< " = " << colUB[col] << endl;
+	PIPS_ALG_LOG_SEV(debug) << "coeff of scen " << scen << ", col " << col
+				<< " = " << coeff << endl;
       }
 
       // Here, floating point comparison tolerance is not necessary;
@@ -319,15 +320,19 @@ private:
 	if (isBinaryFixableLmin) {
 	  // Case 1: if coefficient is positive, binary variable fixed to zero
 	  if (isCoeffPositive) {
-	    if (0 == mype) cout << "Fix bin var in scen " << scen << ", col "
-				<< col << " to 0 via Lmin!" << endl;
+	    if (0 == mype) PIPS_ALG_LOG_SEV(debug) << "Fix bin var in scen "
+						   << scen << ", col "
+						   << col << " to 0 via Lmin!"
+						   << endl;
 	    varUB = 0.0;
 	    numBdsChg++;
 	  }
 	  // Case 2: if coefficient is negative, binary variable fixed to one
 	  if (isCoeffNegative) {
-	    if (0 == mype) cout << "Fix bin var in scen " << scen << ", col "
-				<< col << " to 1 via Lmin!" << endl;
+	    if (0 == mype) PIPS_ALG_LOG_SEV(debug) << "Fix bin var in scen "
+						   << scen << ", col "
+						   << col << " to 1 via Lmin!"
+						   << endl;
 	    varLB = 1.0;
 	    numBdsChg++;
 	  }
@@ -338,15 +343,19 @@ private:
 	if (isBinaryFixableLmax) {
 	  // Case 3: if coefficient is positive, binary variable fixed to one
 	  if (isCoeffPositive) {
-	    if (0 == mype) cout << "Fix bin var in scen " << scen << ", col "
-				<< col << " to 1 via Lmax!" << endl;
+	    if (0 == mype) PIPS_ALG_LOG_SEV(debug) << "Fix bin var in scen "
+						   << scen << ", col "
+						   << col << " to 1 via Lmax!"
+						   << endl;
 	    varLB = 1.0;
 	    numBdsChg++;
 	  }
 	  // Case 4: if coefficient is negative, binary variable fixed to zero
 	  if (isCoeffNegative) {
-	    if (0 == mype) cout << "Fix bin var in scen " << scen << ", col "
-				<< col << " to 0 via Lmax!" << endl;
+	    if (0 == mype) PIPS_ALG_LOG_SEV(debug) << "Fix bin var in scen "
+						   << scen << ", col "
+						   << col << " to 0 via Lmax!"
+						   << endl;
 	    varUB = 0.0;
 	    numBdsChg++;
 	  }
@@ -363,10 +372,11 @@ private:
 	if (isCoeffPositive) {
 	  double LminUB = (rowUB - (Lmin - coeff*varLB))/coeff;
 	  if (LminUB < varUB) {
-	    if (0 == mype) cout << "Tightening UB on scen " << scen
-				<< ", col " << col << " from "
-				<< varUB << " to " << LminUB
-				<< "via Lmin!\n";
+	    if (0 == mype) PIPS_ALG_LOG_SEV(debug) << "Tightening UB on scen "
+						   << scen << ", col " << col
+						   << " from " << varUB
+						   << " to " << LminUB
+						   << "via Lmin!\n";
 	    assert(LminUB > varLB);
 	    varUB = LminUB;
 	    isMIPchanged = true;
@@ -376,10 +386,11 @@ private:
 	else {
 	  double LminLB = (rowUB - (Lmin - coeff*varUB))/coeff;
 	  if (LminLB > varLB) {
-	    if (0 == mype) cout << "Tightening LB on scen " << scen
-				<< ", col " << col << " from "
-				<< varLB << " to " << LminLB
-				<< " via Lmin!\n";
+	    if (0 == mype) PIPS_ALG_LOG_SEV(debug) << "Tightening LB on scen "
+						   << scen << ", col " << col
+						   << " from " << varLB
+						   << " to " << LminLB
+						   << " via Lmin!\n";
 	    assert(LminLB < varUB);
 	    varLB = LminLB;
 	    isMIPchanged = true;
@@ -394,10 +405,10 @@ private:
 	if (isCoeffPositive) {
 	  double LmaxLB = (rowLB - (Lmax - coeff*varUB))/coeff;
 	  if (LmaxLB > varLB) {
-	    if (0 == mype) cout << "Tightening LB on scen " << scen
-				<< ", col " << col << " from "
-				<< varLB << " to " << LmaxLB
-				<< " via Lmax!\n";
+	    if (0 == mype) PIPS_ALG_LOG_SEV(debug) << "Tightening LB on scen "
+						   << scen << ", col " << col
+						   << " from " << varLB << " to "
+						   << LmaxLB << " via Lmax!\n";
 	    assert(LmaxLB < varUB);
 	    varLB = LmaxLB;
 	    isMIPchanged = true;
@@ -407,10 +418,11 @@ private:
 	else {
 	  double LmaxUB = (rowLB - (Lmax - coeff*varLB))/coeff;
 	  if (LmaxUB < varUB) {
-	    if (0 == mype) cout << "Tightening UB on scen " << scen
-				<< ", col " << col << " from "
-				<< varUB << " to " << LmaxUB
-				<< " via Lmax!\n";
+	    if (0 == mype) PIPS_ALG_LOG_SEV(debug) << "Tightening UB on scen "
+						   << scen << ", col " << col
+						   << " from " << varUB
+						   << " to " << LmaxUB
+						   << " via Lmax!\n";
 	    assert(LmaxUB > varLB);
 	    varUB = LmaxUB;
 	    isMIPchanged = true;
@@ -542,10 +554,11 @@ private:
 
     bool isMIPchanged = false;
     if (0 == mype) {
-      cout << "First stage has:\n"
-	   << "\t " << dims.numFirstStageVars() << " logical variables\n"
-	   << "\t " << dims.numFirstStageCons()
-	   << " slack variables/constraints\n";
+      PIPS_ALG_LOG_SEV(debug) << "First stage has:\n"
+			      << "\t " << dims.numFirstStageVars()
+			      << " logical variables\n"
+			      << "\t " << dims.numFirstStageCons()
+			      << " slack variables/constraints\n";
     }
 
     // Begin presolve.
@@ -578,7 +591,8 @@ private:
       // Diagnostic code.
       if (0 == row) {
 	if (0 == mype) {
-	  cout << "For row 0, Lmin = " << Lmin << " and Lmax = " << Lmax << endl;
+	  PIPS_ALG_LOG_SEV(debug) << "For row 0, Lmin = "
+				  << Lmin << " and Lmax = " << Lmax << endl;
 	}
       }
 
@@ -601,7 +615,8 @@ private:
       // Diagnostic code
       if (0 == row) {
 	if (0 == mype) {
-	  cout << "For row 0, rowUB = " << rowUB << " and rowLB = " << rowLB << endl;
+	  PIPS_ALG_LOG_SEV(debug) << "For row 0, rowUB = " << rowUB
+				  << " and rowLB = " << rowLB << endl;
 	}
       }
 
@@ -611,7 +626,8 @@ private:
       if (isRowInfeasible) {
 	setStatusToProvenInfeasible();
 	if (0 == mype) {
-	  cout << "Row " << row << "in Stage 1 is infeasible!" << endl;
+	  PIPS_ALG_LOG_SEV(debug) << "Row " << row
+				  << "in Stage 1 is infeasible!" << endl;
 	}
 	isMIPchanged = true;
 	return isMIPchanged;
@@ -627,7 +643,7 @@ private:
 	// the body of this if statement.
 	// isMIPchanged = true;
 	if (0 == mype) {
-	    cout << "Row " << row << " is redundant!\n";
+	    PIPS_ALG_LOG_SEV(debug) << "Row " << row << " is redundant!\n";
 	}
 	break;
       }
@@ -669,10 +685,11 @@ private:
     bool isMIPchanged = false;
 
     if (0 == mype) {
-      cout << "Second stage scenario 0 has:\n"
-	   << "\t " << dims.numSecondStageVars(0) << " logical variables\n"
-	   << "\t " << dims.numSecondStageCons(0)
-	   << " slack variables/constraints\n";
+      PIPS_ALG_LOG_SEV(debug) << "Second stage scenario 0 has:\n"
+			      << "\t " << dims.numSecondStageVars(0)
+			      << " logical variables\n"
+			      << "\t " << dims.numSecondStageCons(0)
+			      << " slack variables/constraints\n";
     }
     // Only makes sense when called by process that owns scenario scen.
     // NOTE: Probably could replace hard failure with returning
@@ -718,7 +735,8 @@ private:
       // Diagnostic code.
       if (0 == row) {
 	if (0 == mype) {
-	  cout << "For row 0, Lmin = " << Lmin << " and Lmax = " << Lmax << endl;
+	  PIPS_ALG_LOG_SEV(debug) << "For row 0, Lmin = " << Lmin
+				  << " and Lmax = " << Lmax << endl;
 	}
       }
 
@@ -744,8 +762,9 @@ private:
       if (isRowInfeasible) {
 	setStatusToProvenInfeasible();
 	if (0 == mype) {
-	  cout << "Row " << row
-	       << " in scenario " << scen << " is infeasible!" << endl;
+	  PIPS_ALG_LOG_SEV(debug) << "Row " << row
+				  << " in scenario " << scen
+				  << " is infeasible!" << endl;
 	}
 	isMIPchanged = true;
 	return isMIPchanged;
@@ -761,7 +780,7 @@ private:
 	// the body of this if statement.
 	// isMIPchanged = true;
 	if (0 == mype) {
-	    cout << "Row " << row << " is redundant!\n";
+	    PIPS_ALG_LOG_SEV(debug) << "Row " << row << " is redundant!\n";
 	}
 	break;
       }
