@@ -176,6 +176,7 @@ public:
   denseBAVector ubPrimalSolution; // primal solution for best UB on obj
   double objLB; // best lower bound on objective function value
 
+  //TODO: tolerances should go into centralized class
   double intTol; // tolerance on integrality checks
   double optGapTol; // tolerance on optimality gap between UB and LB.
   double lpPrimalTol; // tolerance on LP primal problems
