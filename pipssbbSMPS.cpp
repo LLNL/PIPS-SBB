@@ -25,13 +25,18 @@ using namespace std;
 // Note: "Optimal" conflicts with PIPS-S solverState
 //enum BranchAndBoundStatus { Unbounded, Bounded, Feasible, Optimal, Infeasible};
 
-// Returns true if "x" is integer feasible up to tolerance "tol"
-bool isIntFeas(double x, double tol) {
-    return ( (abs(floor(x) - x) <= tol) || (abs(ceil(x) - x) <= tol) );
-}
-
+// TODO: Move utility functions fracPart & isIntFeas to central location
+// Returns "fractional part" of x
+// Should always be nonnegative. 
 double fracPart(double x) {
   return min(x - floor(x), ceil(x) - x);
+}
+
+// Returns true if "x" is integer feasible up to tolerance "tol"
+bool isIntFeas(double x, double tol) {
+  // Alternate method of calculation, useful for benchmarking, unit tests
+  //    return ( (abs(floor(x) - x) <= tol) || (abs(ceil(x) - x) <= tol) );
+  return (fracPart(x) <= tol);
 }
 
 // Outputs solver status:
