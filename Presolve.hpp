@@ -29,7 +29,11 @@ public:
 					   mype(ctx.mype()),
 					   status(LoadedFromFile),
 					   intTol(1e-6),
-					   eqTol(1e-6) {
+					   eqTol(1e-6),
+					   numPresolves(0),
+					   numBdsChg(0),
+					   numRhsChg(0),
+					   numCoeffChg(0) {
 
     // Prior to presolve, determine if a given variable & scenario is binary,
     // or integer
@@ -77,7 +81,6 @@ public:
     }
 
     // Presolve first stage until nothing changes.
-    unsigned int numPresolves = 0;
     while(true) {
       numPresolves++;
       bool isMIPchanged = false;
@@ -140,6 +143,9 @@ private:
 
 public:
   solverState status;
+
+  // Solver summary statistics
+  unsigned int numPresolves, numBdsChg, numRhsChg, numCoeffChg;
 
 private:
   // TODO: Move these fields into something like BAMIPData, etc.
@@ -252,6 +258,7 @@ private:
   // NOTE: To avoid name clashes, replace "col" by "var" where appropriate,
   // since column and primal variable are synonyms.
   // TODO: Figure out way to keep # of args to 7 or less.
+  // TODO: Simplify "bounds change" counter.
   bool tightenColBoundsByRow(denseVector &colLB,
 			     denseVector &colUB,
 			     const denseFlagVector<bool> &isVarInteger,
@@ -315,12 +322,14 @@ private:
 	    if (0 == mype) cout << "Fix bin var in scen " << scen << ", col "
 				<< col << " to 0 via Lmin!" << endl;
 	    varUB = 0.0;
+	    numBdsChg++;
 	  }
 	  // Case 2: if coefficient is negative, binary variable fixed to one
 	  if (isCoeffNegative) {
 	    if (0 == mype) cout << "Fix bin var in scen " << scen << ", col "
 				<< col << " to 1 via Lmin!" << endl;
 	    varLB = 1.0;
+	    numBdsChg++;
 	  }
 	}
 
@@ -332,12 +341,14 @@ private:
 	    if (0 == mype) cout << "Fix bin var in scen " << scen << ", col "
 				<< col << " to 1 via Lmax!" << endl;
 	    varLB = 1.0;
+	    numBdsChg++;
 	  }
 	  // Case 4: if coefficient is negative, binary variable fixed to zero
 	  if (isCoeffNegative) {
 	    if (0 == mype) cout << "Fix bin var in scen " << scen << ", col "
 				<< col << " to 0 via Lmax!" << endl;
 	    varUB = 0.0;
+	    numBdsChg++;
 	  }
 	}
 
@@ -359,6 +370,7 @@ private:
 	    assert(LminUB > varLB);
 	    varUB = LminUB;
 	    isMIPchanged = true;
+	    numBdsChg++;
 	  }
 	}
 	else {
@@ -371,6 +383,7 @@ private:
 	    assert(LminLB < varUB);
 	    varLB = LminLB;
 	    isMIPchanged = true;
+	    numBdsChg++;
 	  }
 	}
 
@@ -388,6 +401,7 @@ private:
 	    assert(LmaxLB < varUB);
 	    varLB = LmaxLB;
 	    isMIPchanged = true;
+	    numBdsChg++;
 	  }
 	}
 	else {
@@ -400,6 +414,7 @@ private:
 	    assert(LmaxUB > varLB);
 	    varUB = LmaxUB;
 	    isMIPchanged = true;
+	    numBdsChg++;
 	  }
 	}
 
@@ -408,10 +423,12 @@ private:
 	  if(!isIntFeas(varLB, intTol)) {
 	    varLB = ceil(varLB);
 	    isMIPchanged = true;
+	    numBdsChg++;
 	  }
 	  if(!isIntFeas(varUB, intTol)) {
 	    varUB = floor(varUB);
 	    isMIPchanged = true;
+	    numBdsChg++;
 	  }
 	}
       }
