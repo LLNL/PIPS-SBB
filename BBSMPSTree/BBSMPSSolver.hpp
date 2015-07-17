@@ -35,6 +35,14 @@
 #include "BBSMPSNode.hpp"
 #include "Presolve.hpp"
 #include "BBSMPSLogging.hpp"
+#include "BBSMPSSolution.hpp"
+#include <set>
+
+struct solutionComparison {
+  bool operator() (const BBSMPSSolution& lhs, const BBSMPSSolution& rhs) const
+  {return (lhs.getObjValue()<rhs.getObjValue());}
+};
+
 class BBSMPSSolver {
 
 public:
@@ -56,6 +64,13 @@ public:
   static bool isInitialized();
   static void deInitialize();
   void printPresolveStatistics();
+  void addSolutionToPool(BBSMPSSolution &sol);
+  void printSolutionStatistics(double objLB);
+  const BBSMPSSolution &getSoln(int index);
+  const BBSMPSSolution &getSolnBySolNumber(int number);
+  
+  int getSolPoolSize();
+  double getWallTime();
 
 protected:
 
@@ -73,7 +88,9 @@ private:
   denseBAVector ub;
   denseBAVector LPRelaxation;
   BAFlagVector<variableState> originalWarmStart;
+  std::set<BBSMPSSolution,solutionComparison> solutionPool;
 
+  double startTimeStamp;
   static BBSMPSSolver *solverInstance;
 };
 

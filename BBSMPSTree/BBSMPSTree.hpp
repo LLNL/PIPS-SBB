@@ -49,6 +49,7 @@
 #include "BBSMPSSolution.hpp"
 #include "BBSMPSHeuristicRINS.hpp"
 #include "BBSMPSHeuristicFixAndDive.hpp"
+#include "BBSMPSHeuristicCrossover.hpp"
 // Outputs solver status:
 void outputLPStatus(solverState lpStatus);
 
@@ -75,10 +76,7 @@ public:
  }
 };
 
-struct solutionComparison {
-  bool operator() (const BBSMPSSolution& lhs, const BBSMPSSolution& rhs) const
-  {return (lhs.getObjValue()<rhs.getObjValue());}
-};
+
 enum nodeSelectionRule { BestBound, DepthFirst };
 
 // TODO: Check if PIPS-S always minimizes; otherwise, must change logic.
@@ -123,7 +121,6 @@ public:
 
   void setVerbosity(bool verbose);
 
-  void printSolutionStatistics();
 
   void generateIncrementalWarmState(BBSMPSNode* node, const BAFlagVector<variableState> & originalState, const BAFlagVector<variableState> &currentState);
 
@@ -141,7 +138,7 @@ private:
   
   double objUB; // best upper bound on objective function value
   denseBAVector ubPrimalSolution; // primal solution for best UB on obj
-  std::multiset<BBSMPSSolution,solutionComparison> solutionPool;
+  
   double objLB; // best lower bound on objective function value
 
   //double intTol; // tolerance on integrality checks
@@ -152,7 +149,6 @@ private:
 
   int bbIterationCounter;
 
-  double timeStart;
 
   int tiLim;
 

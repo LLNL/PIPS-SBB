@@ -1,32 +1,28 @@
 #include "BBSMPSSolution.hpp"
 
+using namespace std;
+	int BBSMPSSolution::solCounter=0;
+
+	bool BBSMPSSolution::operator==(const BBSMPSSolution &other) const {
+	    return (objValue==other.getObjValue());
+	  }
+
 	BBSMPSSolution::BBSMPSSolution(const denseBAVector &_solutionVector, double _objValue,double _timeOfDiscovery):
-	objValue(_objValue),timeOfDiscovery(_timeOfDiscovery){
-		BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
-    	BAContext &ctx=BBSMPSSolver::instance()->getBAContext();
-    	solutionVector.allocate(dimsSlacks, ctx, PrimalVector);
-		setSolutionVector(_solutionVector);
-
+	objValue(_objValue),timeOfDiscovery(_timeOfDiscovery),solutionVector(_solutionVector){
+		solNumber=(++solCounter);
+		cout<<"Generating solution with "<<solNumber<<" "<<_objValue<<" "<<_timeOfDiscovery<<endl;
 	}
 
-	BBSMPSSolution::BBSMPSSolution(){
-		BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
-    	BAContext &ctx=BBSMPSSolver::instance()->getBAContext();
-    	solutionVector.allocate(dimsSlacks, ctx, PrimalVector);
-		timeOfDiscovery=-1;
 
-	}
 
 	BBSMPSSolution::~BBSMPSSolution(){}
 
 	void BBSMPSSolution::setSolutionVector(const denseBAVector &_solutionVector){
 		solutionVector.copyFrom(_solutionVector);
 	}
-	void BBSMPSSolution::getSolutionVector(denseBAVector &_solutionVector){
-		BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
-    	BAContext &ctx=BBSMPSSolver::instance()->getBAContext();
-    	_solutionVector.allocate(dimsSlacks, ctx, PrimalVector);
-		_solutionVector.copyFrom(solutionVector);
+	void BBSMPSSolution::getSolutionVector(denseBAVector &_solutionVector)const{
+		
+		_solutionVector = denseBAVector(solutionVector);
 	}
 	void BBSMPSSolution::setObjValue(double _objValue){
 		objValue=_objValue;
@@ -43,3 +39,6 @@
 	  timeOfDiscovery=_timeOfDiscovery;
 	}
 
+	int BBSMPSSolution::getSolNumber()const{
+		return solNumber;
+	}

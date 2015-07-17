@@ -63,9 +63,15 @@ problemData(input,ctx),
 rootSolver(problemData, PIPSSInterface::useDual),
 pre(problemData,input),
 dims(problemData.dims.inner),
-dimsSlacks(dims){
+dimsSlacks(dims),
+startTimeStamp(MPI_Wtime()){
   lb = rootSolver.getLB();
   ub = rootSolver.getUB();
+
+}
+
+double BBSMPSSolver::getWallTime(){
+  return MPI_Wtime()-startTimeStamp;
 }
 
 bool BBSMPSSolver::isInitialized(){
@@ -96,4 +102,68 @@ void BBSMPSSolver::printPresolveStatistics(){
 
 BBSMPS_ALG_LOG_SEV(warning)<<"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~";
 }
+
+
+void BBSMPSSolver::addSolutionToPool(BBSMPSSolution &sol){
+    solutionPool.insert(sol);
+};
+
+
+void BBSMPSSolver::printSolutionStatistics(double objLB){
+
+
+    double bestTime=COIN_DBL_MAX;
+
+    for (std::multiset<BBSMPSSolution,solutionComparison>::iterator it=solutionPool.begin(); it!=solutionPool.end(); ++it){
+      BBSMPSSolution s = *it;
+      if (s.getTimeOfDiscovery()<bestTime)bestTime=s.getTimeOfDiscovery();
+    }
+
+      BBSMPS_ALG_LOG_SEV(warning)<<"---------------SOLUTION STATISTICS----------------";
+      
+      BBSMPS_ALG_LOG_SEV(warning)<<"Solution Pool Size:"<<solutionPool.size()<<":Time To First Solution:"<<bestTime;
+  int itCounter=0;
+  for (std::multiset<BBSMPSSolution,solutionComparison>::iterator it=solutionPool.begin(); it!=solutionPool.end(); ++it){
+      BBSMPSSolution s = *it;
+      double solGap = fabs(s.getObjValue()-objLB)*100/(fabs(objLB)+10e-10);
+      BBSMPS_ALG_LOG_SEV(warning)<<"Solution:"<<itCounter<<":Solution Value:"<<s.getObjValue()<<":Time Of Discovery:"<<s.getTimeOfDiscovery()<<":Solution Gap:"<<solGap;
+    itCounter++;
+    }
+  
+  BBSMPS_ALG_LOG_SEV(warning)<<"--------------------------------------------------";
+}
+
+const BBSMPSSolution &BBSMPSSolver::getSoln(int index){
+  assert(index<solutionPool.size());
+
+  std::multiset<BBSMPSSolution,solutionComparison>::iterator it=solutionPool.begin();
+  int ctr=0;
+  while (ctr<index && ctr< solutionPool.size()){
+    it++;
+    ctr++;
+  }
+  return (*it);
+
+}
+const BBSMPSSolution &BBSMPSSolver::getSolnBySolNumber(int number){
+  
+  std::multiset<BBSMPSSolution,solutionComparison>::iterator it=solutionPool.begin();
+  int ctr=0;
+  while ( ctr< solutionPool.size()){
+    if ((*it).getSolNumber()==number)return (*it);
+    it++;
+    ctr++;
+  }
+  assert(false);
+  return (*solutionPool.begin());
+
+}
+
+
+
+int BBSMPSSolver::getSolPoolSize(){
+  return solutionPool.size();
+}
+
+
 

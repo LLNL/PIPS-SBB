@@ -17,7 +17,7 @@
 #include <set>
 #include <vector>
 #include "BBSMPSHeuristic.hpp"
-
+#include "BBSMPSSolver.hpp"
 
 class BBSMPSHeuristicsManager {
 

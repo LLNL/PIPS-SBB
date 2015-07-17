@@ -119,6 +119,7 @@ add_library(pipssbb BBSMPSTree/BBSMPSTree.cpp
 	BBSMPSHeuristics/BBSMPSHeuristicRINS.cpp
 	BBSMPSHeuristics/BBSMPSHeuristicRENS.cpp
 	BBSMPSHeuristics/BBSMPSHeuristicFixAndDive.cpp
+	BBSMPSHeuristics/BBSMPSHeuristicCrossover.cpp
 	BBSMPSTree/BBSMPSSolver.cpp 
 	BBSMPSTree/BBSMPSSolverState.cpp
 	BBSMPSTree/BBSMPSSolution.cpp)

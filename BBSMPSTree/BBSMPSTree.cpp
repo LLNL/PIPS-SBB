@@ -65,7 +65,6 @@ objLB(-COIN_DBL_MAX),
 optGapTol(1e-6),
 lpPrimalTol(1e-6),
 lpDualTol(1e-6),
-timeStart(MPI_Wtime()),
 compTol(lpPrimalTol),
 status(LoadedFromFile),
 nodesel(BestBound),
@@ -73,6 +72,7 @@ tiLim(COIN_INT_MAX),
 nodeLim(COIN_INT_MAX),
 verbosityActivated(true)
 {
+	double timeStart=MPI_Wtime();
 
 	BBSMPSSolver::initialize(smps); 
 	double timeStampPreProc=MPI_Wtime();
@@ -84,7 +84,7 @@ verbosityActivated(true)
     // value from parent LP, initialize a node, and push onto heap to start.
     assert (heap.empty()); // heap should be empty to start
 
-    
+    	
     PIPSSInterface &rootSolver= BBSMPSSolver::instance()->getPIPSInterface();
     BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
     BAContext &ctx=BBSMPSSolver::instance()->getBAContext();
@@ -397,8 +397,7 @@ SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
 	// TODO: Add tolerance on optimality gap, time limit option.
 	while (true) {
 
-		double timeElapsed= MPI_Wtime();
-		if ((timeElapsed-timeStart)>tiLim){
+		if ((BBSMPSSolver::instance()->getWallTime())>tiLim){
 			if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Time Limit reached.";
 			status.setStatusToStopped();
 			break;
@@ -606,8 +605,9 @@ SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
 				if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Updating best upper bound to " << newUB ;
 				objUB = rootSolver.getObjective();
 				ubPrimalSolution.copyFrom(primalSoln);
-				BBSMPSSolution(rootSolver.getPrimalSolution(),newUB, MPI_Wtime()-timeStart);
-				solutionPool.insert(BBSMPSSolution(rootSolver.getPrimalSolution(),newUB, MPI_Wtime()-timeStart));
+				BBSMPSSolution(rootSolver.getPrimalSolution(),newUB, BBSMPSSolver::instance()->getWallTime());
+				BBSMPSSolution aux(rootSolver.getPrimalSolution(),newUB, BBSMPSSolver::instance()->getWallTime());
+				BBSMPSSolver::instance()->addSolutionToPool(aux);
 			}
 			currentNode_ptr->eliminate();
 			nodesBecameInteger++;
@@ -624,15 +624,15 @@ SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
 				denseBAVector solVector;
 				heuristicSolutions[i].getSolutionVector(solVector);
 				if (isLPIntFeas(solVector)){
-					if (heuristicSolutions[i].getObjValue()<objUB) objUB=heuristicSolutions[i].getObjValue();
-					heuristicSolutions[i].setTimeOfDiscovery(MPI_Wtime()-timeStart);
-					solutionPool.insert(heuristicSolutions[i]);
+					heuristicSolutions[i].setTimeOfDiscovery(BBSMPSSolver::instance()->getWallTime());
+					BBSMPSSolver::instance()->addSolutionToPool(heuristicSolutions[i]);
 					status.setStatusToPrimalFeasible();
 				}
 			}
 
 		}
-
+		if (BBSMPSSolver::instance()->getSolPoolSize()>0) objUB=BBSMPSSolver::instance()->getSoln(0).getObjValue();
+					
 		// TODO: Fathom by value dominance in breadth-first fashion?
 
 		/* Otherwise, primal solution is not integral: */
@@ -673,11 +673,11 @@ SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
 
 
 		bbIterationCounter++;
-		if (0 == mype && verbosityActivated && bbIterationCounter%100==0) {
+		if (0 == mype && verbosityActivated && bbIterationCounter%1==0) {
 			double gap = fabs(objUB-objLB)*100/(fabs(objLB)+10e-10);
   		
 			BBSMPS_ALG_LOG_SEV(warning)<<"\n----------------------------------------------------\n"<<
-			"Iteration "<<bbIterationCounter<<":LB:"<<objLB<<":UB:"<<objUB<<":GAP:"<<gap<<":Tree Size:"<<heap.size()<<":Time:"<<MPI_Wtime()-timeStart<<"\n"<<
+			"Iteration "<<bbIterationCounter<<":LB:"<<objLB<<":UB:"<<objUB<<":GAP:"<<gap<<":Tree Size:"<<heap.size()<<":Time:"<<BBSMPSSolver::instance()->getWallTime()<<"\n"<<
 			"----------------------------------------------------";
 		}
 	}
@@ -690,15 +690,15 @@ SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
 		BBSMPS_ALG_LOG_SEV(warning)<<"\n--------------EXPLORATION TERMINATED----------------\n"<<
 		"Iteration "<<bbIterationCounter<<":LB:"<<objLB<<":UB:"<<objUB<<":GAP:"<<gap<<":Tree Size:"<<heap.size()<<"\n"<<
 		":Nodes Fathomed:"<<nodesFathomed<<":Nodes with integer Solution:"<<nodesBecameInteger<<"\n"<<
-		"LP Relaxation Value:"<<LPRelaxationValue<<":LP Relaxation Time:"<<LPRelaxationTime<<":Preprocessing Time:"<<PreProcessingTime<<":Total Time:"<<MPI_Wtime()-timeStart;
+		"LP Relaxation Value:"<<LPRelaxationValue<<":LP Relaxation Time:"<<LPRelaxationTime<<":Preprocessing Time:"<<PreProcessingTime<<":Total Time:"<<BBSMPSSolver::instance()->getWallTime();
 	
 		"----------------------------------------------------";
 		heuristicsManager.printStatistics();
 		branchingRuleManager.printStatistics();
-		printSolutionStatistics();
-		BBSMPSSolver::instance()->printPresolveStatistics();
+		BBSMPSSolver::instance()->printSolutionStatistics(objLB);
+		BBSMPSSolver::instance()->printPresolveStatistics( );
 	}
-	double t = MPI_Wtime() - timeStart;
+	double t = BBSMPSSolver::instance()->getWallTime();
 	if (0 == mype && verbosityActivated) {
 		BBSMPS_APP_LOG_SEV(warning)<<boost::format("Branch and Bound took %f seconds") % t;
 	}
@@ -713,12 +713,6 @@ void BBSMPSTree::setNodeLimit(int _nodeLim){
 	nodeLim=_nodeLim;
 }
 
-bool BBSMPSTree::retrieveBestSolution(BBSMPSSolution &solution){
-	
-	if(solutionPool.empty()) return false;
-	solution = *(solutionPool.begin());
-	return true;
-}
 
 
   void BBSMPSTree::loadSimpleHeuristics(){
@@ -728,18 +722,19 @@ bool BBSMPSTree::retrieveBestSolution(BBSMPSSolution &solution){
 
     
 
-    BBSMPSHeuristicFixAndDive *hr2= new BBSMPSHeuristicFixAndDive(1,75,"FixAndDive");
+    BBSMPSHeuristicFixAndDive *hr2= new BBSMPSHeuristicFixAndDive(1,25,"FixAndDive");
 
     heuristicsManager.addHeuristic(hr2);
 
   }
 
   void BBSMPSTree::loadMIPHeuristics(){
-  	BBSMPSHeuristicRINS *hr= new BBSMPSHeuristicRINS(1,50,"RINS",100);
-	//BBSMPSHeuristicRENS *hr2= new BBSMPSHeuristicRENS(1,50,"RENS",50);
-
-    heuristicsManager.addHeuristic(hr);
-   // heuristicsManager.addHeuristic(hr2);
+  	//BBSMPSHeuristicRINS *hr= new BBSMPSHeuristicRINS(1,1,"RINS",200);
+	//BBSMPSHeuristicRENS *hr2= new BBSMPSHeuristicRENS(1,1,"RENS",200);
+  	BBSMPSHeuristicCrossover *hr3= new BBSMPSHeuristicCrossover(1,1,"Crossover",200);
+  	heuristicsManager.addHeuristic(hr3);
+    //heuristicsManager.addHeuristic(hr);
+    //heuristicsManager.addHeuristic(hr2);
   }
 
   BBSMPSNode* BBSMPSTree::topOfHeap(){
@@ -751,27 +746,5 @@ bool BBSMPSTree::retrieveBestSolution(BBSMPSSolution &solution){
   	verbosityActivated=verbose;
   }
 
-  void BBSMPSTree::printSolutionStatistics(){
 
-
-  	double bestTime=COIN_DBL_MAX;
-
-  	for (std::multiset<BBSMPSSolution,solutionComparison>::iterator it=solutionPool.begin(); it!=solutionPool.end(); ++it){
-  		BBSMPSSolution s = *it;
-  		if (s.getTimeOfDiscovery()<bestTime)bestTime=s.getTimeOfDiscovery();
-  	}
-
-  		BBSMPS_ALG_LOG_SEV(warning)<<"---------------SOLUTION STATISTICS----------------";
-  		
-  		BBSMPS_ALG_LOG_SEV(warning)<<"Solution Pool Size:"<<solutionPool.size()<<":Time To First Solution:"<<bestTime;
-	int itCounter=0;
-	for (std::multiset<BBSMPSSolution,solutionComparison>::iterator it=solutionPool.begin(); it!=solutionPool.end(); ++it){
-  		BBSMPSSolution s = *it;
-  		double solGap = fabs(s.getObjValue()-objLB)*100/(fabs(objLB)+10e-10);
-  		BBSMPS_ALG_LOG_SEV(warning)<<"Solution:"<<itCounter<<":Solution Value:"<<s.getObjValue()<<":Time Of Discovery:"<<s.getTimeOfDiscovery()<<":Solution Gap:"<<solGap;
-		itCounter++;
-  	}
-	
-	BBSMPS_ALG_LOG_SEV(warning)<<"--------------------------------------------------";
-  }
 
