@@ -487,38 +487,12 @@ private:
       double coeff = ptrToElts[j];
       bool isCoeffPositive = (coeff > 0); // Note: only nonzero coeffs stored
       bool isCoeffNegative = (coeff < 0);
-      //double &varUB = colUB[col];
-      //double &varLB = colLB[col];
 
       // Derived by analogy to Savelsbergh Sections 1.2, 1.3
       // Note: This code cannot currently work as written, because
       // PIPSInterface.d (e.g., rootSolver.d) is a protected member, and
       // thus cannot be written to at the moment.
       if(isBin) {
-	// Maximum and minimum possible values for inequality in this row
-	// after discarding all other inequalities
-	double rowMax = overflowSafeAdd(Lmax, -abs(coeff));
-	double rowMin = overflowSafeAdd(Lmin,  abs(coeff));
-
-	// Maximum coefficient increases/decreases by coefficient
-	// improvement subsection of Savelsbergh, Section 1.2.
-	// Note: derived additional relationships for double-sided
-	// inequalities. The basic idea is to see how much each side
-	// of the inequality could possibly be modified after
-	// looking at the max & min possible values for inequality.
-	// The minimum of the possible changes will be used to compute
-	// changes in bounds and coefficients.
-	double coeffLBchg = max(rowUB - rowMax, 0.0);
-	double coeffUBchg = max(rowMin - rowLB, 0.0);
-	double coeffChg = min(coeffLBchg, coeffUBchg);
-	bool isCoeffImprovable = (coeffChg > 0.0);
-
-	// Note: In many cases, if the coefficients cannot be improved
-	// (i.e., coeffChg == 0.0), the code below will do unnecessary
-	// assignments. One later optimization could be to get rid of
-	// these assignments, if they require a significant amount of
-	// time.
-
 	// With two-sided inequalities, it is *ALWAYS* possible to
 	// improve the coefficient and one side of the bounds (upper
 	// or lower).  (Compare to the one-sided inequality case,
@@ -541,25 +515,43 @@ private:
 	// in response to updates of coeff. Possibly worth putting into
 	// its own self-updating data structure?
 
-	if (isCoeffImprovable && isCoeffPositive) {
-	  rowUB = overflowSafeAdd(rowUB, -coeffChg);
-	  double newCoeff = overflowSafeAdd(coeff, -coeffChg);
-	  d.Arow->modifyCoefficient(row, col, newCoeff);
-	  // PIPS-S uses the idiom:
-	  // Acol->reverseOrderedCopyOf(*Arow);
-	  // This idiom seems wasteful here; a possibly better one could be:
-	  d.Acol->modifyCoefficient(row, col, newCoeff);
-	  numRhsChg++; numCoeffChg++;
+	if (isCoeffPositive) {
+	// Maximum coefficient decrease by coefficient
+	// improvement subsection of Savelsbergh, Section 1.2.
+	  double rowMax = overflowSafeAdd(Lmax, -abs(coeff));
+	  double coeffLBchg = max(rowUB - rowMax, 0.0);
+	  bool isCoeffImprovable = (coeffLBchg > 0.0);
+	  if (isCoeffImprovable) {
+	    //rowUB = overflowSafeAdd(rowUB, -coeffLBchg); numRhsChg++;
+	    double newCoeff = overflowSafeAdd(coeff, -coeffLBchg);
+	    d.Arow->modifyCoefficient(row, col, newCoeff);
+	    // PIPS-S uses the idiom:
+	    // Acol->reverseOrderedCopyOf(*Arow);
+	    // This idiom seems wasteful here; a possibly better one could be:
+	    d.Acol->modifyCoefficient(row, col, newCoeff);
+	    numCoeffChg++;
+	  }
 	}
-	else if (isCoeffImprovable && isCoeffNegative) {
-	  rowLB = overflowSafeAdd(rowLB, coeffChg);
-	  double newCoeff = overflowSafeAdd(coeff, coeffChg);
-	  d.Arow->modifyCoefficient(row, col, newCoeff);
-	  // PIPS-S uses the idiom:
-	  // Acol->reverseOrderedCopyOf(*Arow);
-	  // This idiom seems wasteful here; a possibly better one could be:
-	  d.Acol->modifyCoefficient(row, col, newCoeff);
-	  numRhsChg++; numCoeffChg++;
+	else if (isCoeffNegative) {
+	  // Maximum coefficient increase by coefficient
+	  // improvement subsection of Savelsbergh, Section 1.2.
+	  // Derived for lower bound case by taking the negative
+	  // of the inequalities to convert them to upper bound
+	  // inequalities, applying the logic in Section 1.2, then
+	  // taking the negative of the inequalities again.
+	  double rowMin = overflowSafeAdd(Lmin,  abs(coeff));
+	  double coeffUBchg = max(rowMin - rowLB, 0.0);
+	  bool isCoeffImprovable = (coeffUBchg > 0.0);
+	  if (isCoeffImprovable) {
+	    // rowLB = overflowSafeAdd(rowLB, coeffUBchg); numRhsChg++;
+	    double newCoeff = overflowSafeAdd(coeff, coeffUBchg);
+	    d.Arow->modifyCoefficient(row, col, newCoeff);
+	    // PIPS-S uses the idiom:
+	    // Acol->reverseOrderedCopyOf(*Arow);
+	    // This idiom seems wasteful here; a possibly better one could be:
+	    d.Acol->modifyCoefficient(row, col, newCoeff);
+	    numCoeffChg++;
+	  }
 	}
       }
     }
@@ -772,9 +764,9 @@ private:
       // Inferred from BAData::BAData(stochasticInput &input, BAContext &ctx)
       // dimsSlacks.numFirstStageVars() ==
       //    (dims.numFirstStageCons() + dims.numFirstStageVars())
-      double rowUB =
+      double &rowUB =
 	ub.getSecondStageVec(scen)[dims.numSecondStageVars(scen) + row];
-      double rowLB =
+      double &rowLB =
 	lb.getSecondStageVec(scen)[dims.numSecondStageVars(scen) + row];
 
       // If row is infeasible, set status to infeasible, then
@@ -830,6 +822,28 @@ private:
 					   rowLB,
 					   rowUB,
 					   scen) || isMIPchanged;
+
+      // Improve coefficients and bounds of row of T matrix
+      isMIPchanged = improveCoeffsByRow(lb.getFirstStageVec(),
+					ub.getFirstStageVec(),
+					isColBinary.getFirstStageVec(),
+					currentTrow,
+					row,
+					Lmax,
+					Lmin,
+					rowLB,
+					rowUB) || isMIPchanged;
+
+      // Improve coefficients and bounds of row in W matrix
+      isMIPchanged = improveCoeffsByRow(lb.getSecondStageVec(scen),
+					ub.getSecondStageVec(scen),
+					isColBinary.getSecondStageVec(scen),
+					currentWrow,
+					row,
+					Lmax,
+					Lmin,
+					rowLB,
+					rowUB) || isMIPchanged;
 
     }
 
