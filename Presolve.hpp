@@ -33,7 +33,9 @@ public:
 					   numPresolves(0),
 					   numBdsChg(0),
 					   numRhsChg(0),
-					   numCoeffChg(0) {
+					   numCoeffChg(0),
+					   numBinFixed(0),
+					   numCtsFixed(0) {
 
     // Prior to presolve, determine if a given variable & scenario is binary,
     // or integer
@@ -115,8 +117,7 @@ public:
       if(numPresolves > 100) break;
     }
 
-    if (0 == mype) PIPS_ALG_LOG_SEV(info) << "There were "
-					  << numPresolves << " presolves.\n";
+    logStats();
 
   }
 
@@ -146,13 +147,29 @@ public:
   solverState status;
 
   // Solver summary statistics
-  unsigned int numPresolves, numBdsChg, numRhsChg, numCoeffChg;
+  unsigned int numPresolves, numBdsChg, numRhsChg, numCoeffChg, numBinFixed, numCtsFixed;
 
 private:
   // TODO: Move these fields into something like BAMIPData, etc.
   // Vectors that store whether given variable is binary, integer
   BAFlagVector<bool> isColInteger;
   BAFlagVector<bool> isColBinary;
+
+  void logStats() {
+    if(0 == mype) {
+      PIPS_ALG_LOG_SEV(info) << "Presolve summary statistics:" << endl;
+      PIPS_ALG_LOG_SEV(info) << "Number of presolves: " << numPresolves
+			     << endl;
+      PIPS_ALG_LOG_SEV(info) << "Number of column bounds changes: " << numBdsChg
+			     << endl;
+      PIPS_ALG_LOG_SEV(info) << "Number of binary variables fixed: "
+			     << numBinFixed << endl;
+      PIPS_ALG_LOG_SEV(info) << "Number of row bounds changes: "
+			     << numRhsChg << endl;
+      PIPS_ALG_LOG_SEV(info) << "Number of coefficient changes: "
+			     << numCoeffChg << endl;
+    }
+  }
 
   // TODO: Dirty hack. Must refactor status into a class that is a state
   // machine.
@@ -325,7 +342,7 @@ private:
 						   << col << " to 0 via Lmin!"
 						   << endl;
 	    varUB = 0.0;
-	    numBdsChg++;
+	    numBdsChg++; numBinFixed++;
 	  }
 	  // Case 2: if coefficient is negative, binary variable fixed to one
 	  if (isCoeffNegative) {
@@ -334,7 +351,7 @@ private:
 						   << col << " to 1 via Lmin!"
 						   << endl;
 	    varLB = 1.0;
-	    numBdsChg++;
+	    numBdsChg++; numBinFixed++;
 	  }
 	}
 
@@ -348,7 +365,7 @@ private:
 						   << col << " to 1 via Lmax!"
 						   << endl;
 	    varLB = 1.0;
-	    numBdsChg++;
+	    numBdsChg++; numBinFixed++;
 	  }
 	  // Case 4: if coefficient is negative, binary variable fixed to zero
 	  if (isCoeffNegative) {
@@ -357,7 +374,7 @@ private:
 						   << col << " to 0 via Lmax!"
 						   << endl;
 	    varUB = 0.0;
-	    numBdsChg++;
+	    numBdsChg++; numBinFixed++;
 	  }
 	}
 
