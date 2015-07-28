@@ -522,7 +522,6 @@ private:
 	  double coeffLBchg = max(rowUB - rowMax, 0.0);
 	  bool isCoeffImprovable = (coeffLBchg > 0.0);
 	  if (isCoeffImprovable) {
-	    //rowUB = overflowSafeAdd(rowUB, -coeffLBchg); numRhsChg++;
 	    double newCoeff = overflowSafeAdd(coeff, -coeffLBchg);
 	    d.Arow->modifyCoefficient(row, col, newCoeff);
 	    // PIPS-S uses the idiom:
@@ -530,6 +529,14 @@ private:
 	    // This idiom seems wasteful here; a possibly better one could be:
 	    d.Acol->modifyCoefficient(row, col, newCoeff);
 	    numCoeffChg++;
+
+	    // TODO: Remove redundancy check once redundant constraint
+	    // elimination is implemented.
+	    bool isUBredundant = (Lmax <= rowUB);
+	    if (!isUBredundant) {
+	      rowUB = overflowSafeAdd(rowUB, -coeffLBchg);
+	      numRhsChg++;
+	    }
 	  }
 	}
 	else if (isCoeffNegative) {
@@ -543,7 +550,6 @@ private:
 	  double coeffUBchg = max(rowMin - rowLB, 0.0);
 	  bool isCoeffImprovable = (coeffUBchg > 0.0);
 	  if (isCoeffImprovable) {
-	    // rowLB = overflowSafeAdd(rowLB, coeffUBchg); numRhsChg++;
 	    double newCoeff = overflowSafeAdd(coeff, coeffUBchg);
 	    d.Arow->modifyCoefficient(row, col, newCoeff);
 	    // PIPS-S uses the idiom:
@@ -551,6 +557,14 @@ private:
 	    // This idiom seems wasteful here; a possibly better one could be:
 	    d.Acol->modifyCoefficient(row, col, newCoeff);
 	    numCoeffChg++;
+
+	    // TODO: Remove redundancy check once redundant constraint
+	    // elimination is implemented.
+	    bool isLBredundant = (Lmin >= rowLB);
+	    if (!isLBredundant) {
+	      rowLB = overflowSafeAdd(rowLB, coeffUBchg);
+	      numRhsChg++;
+	    }
 	  }
 	}
       }
