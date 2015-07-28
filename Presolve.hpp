@@ -519,10 +519,10 @@ private:
 	// Maximum coefficient decrease by coefficient
 	// improvement subsection of Savelsbergh, Section 1.2.
 	  double rowMax = overflowSafeAdd(Lmax, -abs(coeff));
-	  double coeffLBchg = max(rowUB - rowMax, 0.0);
-	  bool isCoeffImprovable = (coeffLBchg > 0.0);
+	  double rowUBchg = max(rowUB - rowMax, 0.0);
+	  bool isCoeffImprovable = (rowUBchg > 0.0);
 	  if (isCoeffImprovable) {
-	    double newCoeff = overflowSafeAdd(coeff, -coeffLBchg);
+	    double newCoeff = overflowSafeAdd(coeff, -rowUBchg);
 	    d.Arow->modifyCoefficient(row, col, newCoeff);
 	    // PIPS-S uses the idiom:
 	    // Acol->reverseOrderedCopyOf(*Arow);
@@ -534,7 +534,7 @@ private:
 	    // elimination is implemented.
 	    bool isUBredundant = (Lmax <= rowUB);
 	    if (!isUBredundant) {
-	      rowUB = overflowSafeAdd(rowUB, -coeffLBchg);
+	      rowUB = overflowSafeAdd(rowUB, -rowUBchg);
 	      numRhsChg++;
 	    }
 	  }
@@ -547,10 +547,10 @@ private:
 	  // inequalities, applying the logic in Section 1.2, then
 	  // taking the negative of the inequalities again.
 	  double rowMin = overflowSafeAdd(Lmin,  abs(coeff));
-	  double coeffUBchg = max(rowMin - rowLB, 0.0);
-	  bool isCoeffImprovable = (coeffUBchg > 0.0);
+	  double rowLBchg = max(rowMin - rowLB, 0.0);
+	  bool isCoeffImprovable = (rowLBchg > 0.0);
 	  if (isCoeffImprovable) {
-	    double newCoeff = overflowSafeAdd(coeff, coeffUBchg);
+	    double newCoeff = overflowSafeAdd(coeff, rowLBchg);
 	    d.Arow->modifyCoefficient(row, col, newCoeff);
 	    // PIPS-S uses the idiom:
 	    // Acol->reverseOrderedCopyOf(*Arow);
@@ -562,7 +562,7 @@ private:
 	    // elimination is implemented.
 	    bool isLBredundant = (Lmin >= rowLB);
 	    if (!isLBredundant) {
-	      rowLB = overflowSafeAdd(rowLB, coeffUBchg);
+	      rowLB = overflowSafeAdd(rowLB, rowLBchg);
 	      numRhsChg++;
 	    }
 	  }
