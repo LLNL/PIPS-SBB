@@ -1,33 +1,35 @@
 // ----------------------------------------------------------------------------
 /**
-   File: BBSMPSHeuristicRINS.hpp
+   File: BBSMPSHeuristicSolutionRINS.hpp
 
-   Description: RINS PRIMAL HEURISTIC: The node relaxation is compared to the LP relaxation.
-   Those variables with equal value are fixed, while the rest are left free. The resulting
-   subproblem is optimized up to a certain node limit.
+   Description: Solution Crossover with the LP relaxation
 
 */ 
 // ----------------------------------------------------------------------------
 
 
-#ifndef BBSMPSHEURISTICRINS_H
-#define BBSMPSHEURISTICRINS_H
+#ifndef BBSMPSHEURISTICSOLUTIONRINS_H
+#define BBSMPSHEURISTICSOLUTIONRINS_H
 
+#include "BBSMPSHeuristicLockRounding.hpp"
 #include "BBSMPSHeuristic.hpp"
 #include "BBSMPSUtils.hpp"
 #include "BBSMPSSolver.hpp"
 #include "BBSMPSBranchingInfo.hpp"
 #include "BBSMPSTree.hpp"
+#include <utility> 
+#include <map>
 
-class BBSMPSHeuristicRINS: public BBSMPSHeuristic {
+class BBSMPSHeuristicSolutionRINS: public BBSMPSHeuristic {
 	
 public:
-	BBSMPSHeuristicRINS(int offset, int depth,  const char *_name, int _nodeLim): nodeLim(_nodeLim), BBSMPSHeuristic(offset,depth,_name){};
+	BBSMPSHeuristicSolutionRINS(int offset, int depth,  const char *_name, int _nodeLim): nodeLim(_nodeLim),BBSMPSHeuristic(offset,depth,_name){};
 	bool runHeuristic(BBSMPSNode* node, denseBAVector &LPRelaxationSolution, BBSMPSSolution &solution, double objUB);
 	bool shouldItRun(BBSMPSNode* node, denseBAVector &LPRelaxationSolution);
 
 private:
 	int nodeLim;
+	std::map< int ,int> seenCrossovers;
 };
 
 

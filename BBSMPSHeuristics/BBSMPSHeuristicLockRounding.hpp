@@ -1,15 +1,16 @@
 // ----------------------------------------------------------------------------
 /**
-   File: BBSMPSHeuristicFixAndDive.hpp
+   File: BBSMPSHeuristicLockRounding.hpp
 
-   Description: This diving heuristic proceeds to round one variable at at time, to then proceed to solve the resulting LP relaxation.
-   The variable order of choice is the largest fractionality first. 
+   Description: Heuristic lock rounding implemented as described by Timo Berthold.
+   
+
 */ 
 // ----------------------------------------------------------------------------
 
 
-#ifndef BBSMPSHEURISTICFIXANDDIVE_H
-#define BBSMPSHEURISTICFIXANDDIVE_H
+#ifndef BBSMPSHEURISTICLOCKROUNDING_H
+#define BBSMPSHEURISTICLOCKROUNDING_H
 
 #include "BBSMPSHeuristic.hpp"
 #include "BBSMPSUtils.hpp"
@@ -17,10 +18,11 @@
 #include <algorithm>    // std::sort
 #include <vector>       // std::vector
 #include <utility>
-class BBSMPSHeuristicFixAndDive: public BBSMPSHeuristic {
+#include "CoinShallowPackedVector.hpp"
+class BBSMPSHeuristicLockRounding: public BBSMPSHeuristic {
 	
 public:
-	BBSMPSHeuristicFixAndDive(int offset, int depth,  const char *_name): BBSMPSHeuristic(offset,depth,_name){};
+	BBSMPSHeuristicLockRounding(int offset, int depth,  const char *_name): BBSMPSHeuristic(offset,depth,_name){};
 	bool runHeuristic(BBSMPSNode* node, denseBAVector &LPRelaxationSolution, BBSMPSSolution &solution,double objUB);
 	bool shouldItRun(BBSMPSNode* node, denseBAVector &LPRelaxationSolution);
 

@@ -14,14 +14,14 @@ bool BBSMPSHeuristicCrossover::runHeuristic(BBSMPSNode* node, denseBAVector &nod
 
 	int nSols=BBSMPSSolver::instance()->getSolPoolSize();
 
-	vector< pair< int, int> > crossoversToDo;
+	vector< std::pair< int, int> > crossoversToDo;
 	
 	for (int i=0; i< nSols; i++){
 		const BBSMPSSolution sol1=BBSMPSSolver::instance()->getSoln(i);
 		cout<<"In the queue we have solution "<<sol1.getSolNumber()<<endl;
 		for (int j=i+1; j< nSols; j++){
 			const BBSMPSSolution sol2=BBSMPSSolver::instance()->getSoln(j);
-			pair<int,int> index(sol1.getSolNumber(),sol2.getSolNumber());
+			std::pair<int,int> index(sol1.getSolNumber(),sol2.getSolNumber());
 			if (seenCrossovers.count(index)==0){
 
 
@@ -98,8 +98,12 @@ bool BBSMPSHeuristicCrossover::runHeuristic(BBSMPSNode* node, denseBAVector &nod
 		
 		//Add time/node limit
 		bb.setNodeLimit(nodeLim);
+		double bestUB=BBSMPSSolver::instance()->getSoln(0).getObjValue();
+	
+		bb.setLB(node->getObjective());
+		bb.setUB(bestUB);
 		//Run
-
+		
 		bb.branchAndBound();
 
 		

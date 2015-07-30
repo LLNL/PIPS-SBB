@@ -30,7 +30,7 @@ public:
 
 private:
 	int nodeLim;
-	std::map< pair<int,int> ,int> seenCrossovers;
+	std::map< std::pair<int,int> ,int> seenCrossovers;
 };
 
 
