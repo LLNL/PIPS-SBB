@@ -667,11 +667,11 @@ void BBSMPSTree::setNodeLimit(int _nodeLim){
 
     
 
-  	BBSMPSHeuristicLockRounding *hr4= new BBSMPSHeuristicLockRounding(1,1000,"HeuristicLockRounding");
+  	BBSMPSHeuristicLockRounding *hr4= new BBSMPSHeuristicLockRounding(1,25,"HeuristicLockRounding");
 
     heuristicsManager.addHeuristic(hr4);
 
-    BBSMPSHeuristicFixAndDiveLocks *hr5= new BBSMPSHeuristicFixAndDiveLocks(1,1000,"FixAndDiveLocks");
+    BBSMPSHeuristicFixAndDiveLocks *hr5= new BBSMPSHeuristicFixAndDiveLocks(1,25,"FixAndDiveLocks");
 
     heuristicsManager.addHeuristic(hr5);
 

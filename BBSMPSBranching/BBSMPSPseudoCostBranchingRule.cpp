@@ -6,7 +6,7 @@ struct doubleint { double d; int i;};
 		return (1-mu)*min(qminus,qplus)+(mu)*max(qminus,qplus);
 	}
 	void BBSMPSPseudoCostBranchingRule::initializeVariable(const denseBAVector &nodeRelaxation,BAFlagVector<variableState> &warmstart, double lpRelaxationObjValue, denseBAVector &lb, denseBAVector &ub, int scen, int col){
-		//cout<<"setting variable "<<scen<<" "<<col<<endl;
+		////cout<<"setting variable "<<scen<<" "<<col<<endl;
 		PIPSSInterface &rootSolver= BBSMPSSolver::instance()->getPIPSInterface();
         int mype=BBSMPSSolver::instance()->getMype();
 
@@ -47,7 +47,7 @@ struct doubleint { double d; int i;};
            lb.getVec(scen)[col]=savedLB;
            ub.getVec(scen)[col]=floor(nodeRelaxation.getVec(scen)[col]);
            diffInVal=nodeRelaxation.getVec(scen)[col]-ub.getVec(scen)[col];
-           cout<<"Doing ub for "<<scen<<" "<<col<<" "<<upPseudoCost.getVec(scen)[col]<<" "<<upBranchingHistory.getVec(scen)[col]<<"  "<<diffInObjective<<endl;
+           //cout<<"Doing ub for "<<scen<<" "<<col<<" LP OBJ "<<lpObj<<" "<<upPseudoCost.getVec(scen)[col]<<" "<<upBranchingHistory.getVec(scen)[col]<<"  "<<diffInObjective<<endl;
 		      
 
         }
@@ -65,7 +65,7 @@ struct doubleint { double d; int i;};
            double diffInObjective=fabs(lpObj-lpRelaxationObjValue);
            downPseudoCost.getVec(scen)[col]+=diffInObjective/diffInVal;
            downBranchingHistory.getVec(scen)[col]++;
-           cout<<"Doing lb for "<<scen<<" "<<col<<" "<<downPseudoCost.getVec(scen)[col]<<" "<<downBranchingHistory.getVec(scen)[col]<<"  "<<diffInObjective<<endl;
+           //cout<<"Doing lb for "<<scen<<" "<<col<<" LP OBJ "<<lpObj<<" "<<downPseudoCost.getVec(scen)[col]<<" "<<downBranchingHistory.getVec(scen)[col]<<"  "<<diffInObjective<<endl;
 	       lb.getVec(scen)[col]=savedLB;
            ub.getVec(scen)[col]=savedUB;
           
@@ -157,8 +157,7 @@ struct doubleint { double d; int i;};
 
 
 	BBSMPSPseudoCostBranchingRule::BBSMPSPseudoCostBranchingRule(int priority): BBSMPSBranchingRule(priority){
-
-         name="Max Fractional Branching Rule";
+		  name="Max Fractional Branching Rule";
           BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
         BAContext &ctx=BBSMPSSolver::instance()->getBAContext();
          BAFlagVector<variableState> warmstart(BBSMPSSolver::instance()->getOriginalWarmStart());
@@ -171,7 +170,9 @@ struct doubleint { double d; int i;};
          upPseudoCost.clear();
          downBranchingHistory.clear();
          upBranchingHistory.clear();
-
+         reliabilityFactor=4;
+         everythingFirstStageInitialized=false;
+         everythingSecondStageInitialized=false;
          denseBAVector sol(BBSMPSSolver::instance()->getLPRelaxation());
 
          denseBAVector lb(BBSMPSSolver::instance()->getOriginalLB());
@@ -181,9 +182,9 @@ struct doubleint { double d; int i;};
          double lpRelaxationObjValue=BBSMPSSolver::instance()->getLPRelaxationObjectiveValue();
 
        	 performRoundOfFirstStageInitializations(sol,warmstart,lb,ub, lpRelaxationObjValue);
-         everythingFirstStageInitialized=false;
-         everythingSecondStageInitialized=false;
-         reliabilityFactor=8;
+         
+
+       
       };
 
 int BBSMPSPseudoCostBranchingRule::getFirstStageMinIntInfeasCol( const denseBAVector& primalSoln,  SMPSInput& input) {
@@ -233,7 +234,12 @@ int BBSMPSPseudoCostBranchingRule::getFirstStageMaxFracPartCol( const denseBAVec
 			}
 		}
 	}
-
+	double downTimes=downBranchingHistory.getFirstStageVec()[maxCol];
+			double upTimes=downBranchingHistory.getFirstStageVec()[maxCol];
+			double downDiff=primalSoln.getFirstStageVec()[maxCol]-floor(primalSoln.getFirstStageVec()[maxCol]);
+			double upDiff=ceil(primalSoln.getFirstStageVec()[maxCol])-primalSoln.getFirstStageVec()[maxCol];
+			
+	//cout<<"We chose variable "<<maxCol<<" with a score of "<<maxScore<<" down, "<<downPseudoCost.getFirstStageVec()[maxCol]<< " factor "<<(downPseudoCost.getFirstStageVec()[maxCol]/downTimes)*downDiff<<" up, "<<upPseudoCost.getFirstStageVec()[maxCol]<< " factor "<<(upPseudoCost.getFirstStageVec()[maxCol]/upTimes)*upDiff<<" downdif "<<downDiff<<" updiff "<<upDiff<<endl;	
 	//if (maxScore <= intTol) return -1;
 	return maxCol;
 
@@ -285,10 +291,10 @@ int BBSMPSPseudoCostBranchingRule::getSecondStageMinIntInfeasCol( const denseBAV
 		bool isColInteger = input.isSecondStageColInteger(scen, col);
 
 		bool isValInteger = isIntFeas(primalSoln.getSecondStageVec(scen)[col], intTol);
-	//	cout<<"Checking out col "<<scen<<" "<<col<<" is int feas "<<isColInteger<<" "<<isValInteger<<endl;
+	//	//cout<<"Checking out col "<<scen<<" "<<col<<" is int feas "<<isColInteger<<" "<<isValInteger<<endl;
 		// If the (col)th 2nd stage primal variable of the (scen)th	
 		// scenario is integer, but has fractional value, return idx
-		//cout<<"Performing "<<col<<" "<<scen<<endl;
+		////cout<<"Performing "<<col<<" "<<scen<<endl;
 		if (isColInteger && !isValInteger) {
 			double downDiff=primalSoln.getSecondStageVec(scen)[col]-floor(primalSoln.getSecondStageVec(scen)[col]);
 			double upDiff=ceil(primalSoln.getSecondStageVec(scen)[col])-primalSoln.getSecondStageVec(scen)[col];
@@ -297,7 +303,7 @@ int BBSMPSPseudoCostBranchingRule::getSecondStageMinIntInfeasCol( const denseBAV
 			
 		
 			double score=scoreFunction((downPseudoCost.getSecondStageVec(scen)[col]/downTimes)*downDiff, (upPseudoCost.getSecondStageVec(scen)[col]/upTimes)*upDiff, 0.1667);
-		//	cout<<"Pseudos out col "<<scen<<" "<<col<<" score "<<score<<" downdiff "<<downDiff<<" updiff "<<upDiff<<" pseudos"<<downPseudoCost.getSecondStageVec(scen)[col]*downDiff<<" "<<upPseudoCost.getSecondStageVec(scen)[col]*upDiff<<endl;
+		//	//cout<<"Pseudos out col "<<scen<<" "<<col<<" score "<<score<<" downdiff "<<downDiff<<" updiff "<<upDiff<<" pseudos"<<downPseudoCost.getSecondStageVec(scen)[col]*downDiff<<" "<<upPseudoCost.getSecondStageVec(scen)[col]*upDiff<<endl;
 		
 		 	if (score > maxScore)  {
 				maxCol = col;
@@ -330,7 +336,7 @@ void BBSMPSPseudoCostBranchingRule::branchOnSecondStage(BBSMPSNode * node, std::
     // index of an integer infeasible variable.
 
 	int myRankBranchScen(input.nScenarios() + 1);
-    //if (0 == mype) //cout << "myRankBranchScen = " << myRankBranchScen << endl;
+    //if (0 == mype) ////cout << "myRankBranchScen = " << myRankBranchScen << endl;
     double maxScore=-1;
     double maxScen=-1;
     double maxCol=-1;
@@ -346,7 +352,7 @@ void BBSMPSPseudoCostBranchingRule::branchOnSecondStage(BBSMPSNode * node, std::
 			
 		
 				double score=scoreFunction((downPseudoCost.getSecondStageVec(scen)[col]/downTimes)*downDiff, (upPseudoCost.getSecondStageVec(scen)[col]/upTimes)*upDiff, 0.1667);
-				//cout<<"best val from scenario "<<scen<<" is col "<<col<<" score " << 	score<<endl;
+				////cout<<"best val from scenario "<<scen<<" is col "<<col<<" score " << 	score<<endl;
 			
 				if (score>maxScore){
 					maxScore=score;
@@ -356,7 +362,7 @@ void BBSMPSPseudoCostBranchingRule::branchOnSecondStage(BBSMPSNode * node, std::
 			}
 		}
 	}
-	//cout<<"Aaand the best one is  "<<maxScen<<" is col "<<maxCol<<endl;
+	////cout<<"Aaand the best one is  "<<maxScen<<" is col "<<maxCol<<endl;
 			
 	
 
@@ -371,7 +377,7 @@ void BBSMPSPseudoCostBranchingRule::branchOnSecondStage(BBSMPSNode * node, std::
 	std::vector<BBSMPSBranchingInfo> bInfosRightKid;
 
 	if(best.i==mype) {
-		//cout<< "Processor " << mype << " will branch on second stage scenario " << maxScen <<" and variable "<<maxCol<< ".floor "<< floor(primalSoln.getSecondStageVec(maxScen)[maxCol])<<" and ceil "<<ceil(primalSoln.getSecondStageVec(maxScen)[maxCol])<<endl;
+		////cout<< "Processor " << mype << " will branch on second stage scenario " << maxScen <<" and variable "<<maxCol<< ".floor "<< floor(primalSoln.getSecondStageVec(maxScen)[maxCol])<<" and ceil "<<ceil(primalSoln.getSecondStageVec(maxScen)[maxCol])<<endl;
 
 		//int branchCol = getSecondStageMinIntInfeasCol(primalSoln, branchScen,input);
 
@@ -398,7 +404,7 @@ bool BBSMPSPseudoCostBranchingRule::branch(BBSMPSNode * node, std::vector<BBSMPS
 	SMPSInput &input= BBSMPSSolver::instance()->getSMPSInput();
 	BAContext &ctx= BBSMPSSolver::instance()->getBAContext();
 	int mype=BBSMPSSolver::instance()->getMype();
-	//cout<<"Branching "<<endl;
+	////cout<<"Branching "<<endl;
 	if (!everythingFirstStageInitialized){
 
 		denseBAVector lb(BBSMPSSolver::instance()->getOriginalLB());
@@ -408,13 +414,13 @@ bool BBSMPSPseudoCostBranchingRule::branch(BBSMPSNode * node, std::vector<BBSMPS
 		BAFlagVector<variableState> ps(BBSMPSSolver::instance()->getOriginalWarmStart());
 		//node->reconstructWarmStartState(ps);
 		double lpRelaxationObjValue=node->getObjective();
-		//cout<<"Branching2 "<<endl;
+		////cout<<"Branching2 "<<endl;
 		everythingFirstStageInitialized=!performRoundOfFirstStageInitializations(primalSoln,ps,lb,ub, lpRelaxationObjValue);
         
 	}
 
 	if(!isFirstStageIntFeas(primalSoln,input)) {
-		//cout<<"Branching 3"<<endl;
+		////cout<<"Branching 3"<<endl;
 		branchOnFirstStage(node, childNodes, primalSoln,input);
 		timesSuccessful++;
 
@@ -437,13 +443,13 @@ bool BBSMPSPseudoCostBranchingRule::branch(BBSMPSNode * node, std::vector<BBSMPS
 		BAFlagVector<variableState> ps(BBSMPSSolver::instance()->getOriginalWarmStart());
 		//node->reconstructWarmStartState(ps);
 		double lpRelaxationObjValue=node->getObjective();
-		//cout<<"Branching2 "<<endl;
+		////cout<<"Branching2 "<<endl;
 		everythingSecondStageInitialized=!performRoundOfSecondStageInitializations(primalSoln,ps,lb,ub, lpRelaxationObjValue);
         
 	}
 
 
-    //cout<<"Branching 4"<<endl;
+    ////cout<<"Branching 4"<<endl;
 	branchOnSecondStage(node,childNodes,primalSoln,input,ctx,mype);
 	timesSuccessful+=(childNodes.size()>0);
 	return (childNodes.size()>0);

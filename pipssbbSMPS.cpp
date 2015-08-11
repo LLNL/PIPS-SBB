@@ -58,8 +58,8 @@ int main(int argc, char **argv) {
 
   bb.loadSimpleHeuristics();
   bb.loadMIPHeuristics();
-  bb.setTimeLimit(3600*10);
-  bb.setNodeLimit(100000);
+  bb.setTimeLimit(3600);
+  //bb.setNodeLimit(100000);
   if (0 == mype) BBSMPS_ALG_LOG_SEV(info) <<"Calling branch-and-bound.";
   bb.branchAndBound();
 
