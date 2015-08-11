@@ -40,6 +40,15 @@ BBSMPSSolver *BBSMPSSolver::instance(){
   return solverInstance;
 }
 
+void BBSMPSSolver::setLPRelaxationObjectiveValue(double lpRelObjVal){
+  LPRelaxationObjectiveValue=lpRelObjVal;
+}
+
+double BBSMPSSolver::getLPRelaxationObjectiveValue(){
+  return LPRelaxationObjectiveValue;
+}
+
+
 //TODO: The relaxation could not be initialized. we need proper guards.
 denseBAVector& BBSMPSSolver::getLPRelaxation(){
   return LPRelaxation;

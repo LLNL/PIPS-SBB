@@ -111,6 +111,7 @@ add_library(pipssbb BBSMPSTree/BBSMPSTree.cpp
 	BBSMPSBranching/BBSMPSBranchingRuleManager.cpp 
 	BBSMPSBranching/BBSMPSBranchingRule.cpp 
 	BBSMPSBranching/BBSMPSMaxFracBranchingRule.cpp 
+	BBSMPSBranching/BBSMPSPseudoCostBranchingRule.cpp 
 	BBSMPSUtils/BBSMPSUtils.cpp
 	BBSMPSUtils/BBSMPSLogging.cpp
 	BBSMPSHeuristics/BBSMPSHeuristicsManager.cpp 

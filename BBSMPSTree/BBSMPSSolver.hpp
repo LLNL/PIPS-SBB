@@ -59,6 +59,8 @@ public:
   void setOriginalWarmStart(BAFlagVector<variableState>&warmStart);
   denseBAVector& getLPRelaxation();
   void setLPRelaxation(denseBAVector &_LPRelaxation);
+  void setLPRelaxationObjectiveValue(double lpRelObjVal);
+  double getLPRelaxationObjectiveValue();
   static BBSMPSSolver *instance();
   static BBSMPSSolver *initialize(const SMPSInput &_input);
   static bool isInitialized();
@@ -89,7 +91,8 @@ private:
   denseBAVector LPRelaxation;
   BAFlagVector<variableState> originalWarmStart;
   std::set<BBSMPSSolution,solutionComparison> solutionPool;
-
+  
+  double LPRelaxationObjectiveValue;
   double startTimeStamp;
   static BBSMPSSolver *solverInstance;
 };

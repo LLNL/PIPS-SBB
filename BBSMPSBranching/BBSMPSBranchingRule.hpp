@@ -34,6 +34,7 @@ protected:
 	int timesSuccessful;
 	std::string name;
 
+
 };
 
 #endif

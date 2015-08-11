@@ -418,6 +418,7 @@ bool BBSMPSHeuristicFixAndDiveLocks::runHeuristic(BBSMPSNode* node, denseBAVecto
 }
 
 bool BBSMPSHeuristicFixAndDiveLocks::shouldItRun(BBSMPSNode* node, denseBAVector &LPRelaxationSolution){
+	if (node->getNodeDepth()<10)return true;
 	SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
 	BAContext &ctx= BBSMPSSolver::instance()->getBAContext();
 	
@@ -426,7 +427,7 @@ bool BBSMPSHeuristicFixAndDiveLocks::shouldItRun(BBSMPSNode* node, denseBAVector
 	for (int col = 0; col < input.nFirstStageVars(); col++)
 	{	
 		if(input.isFirstStageColInteger(col)){
-			numberOfFractionalVariables+=(!isIntFeas(LPRelaxationSolution.getFirstStageVec()[col],intTol));
+			if (!isIntFeas(LPRelaxationSolution.getFirstStageVec()[col],intTol)) numberOfFractionalVariables++;
 			nIntVars++;
 		}
 		
@@ -443,7 +444,7 @@ bool BBSMPSHeuristicFixAndDiveLocks::shouldItRun(BBSMPSNode* node, denseBAVector
 			{
 
 				if(input.isSecondStageColInteger(scen,col)){
-					numberOfFractionalVariables2+=(!isIntFeas(LPRelaxationSolution.getSecondStageVec(scen)[col],intTol));
+					if (!isIntFeas(LPRelaxationSolution.getSecondStageVec(scen)[col],intTol)) numberOfFractionalVariables2++;
 					nIntVars2++;
 					
 				}
@@ -471,6 +472,7 @@ bool BBSMPSHeuristicFixAndDiveLocks::shouldItRun(BBSMPSNode* node, denseBAVector
 	nIntVars+=totalIntVars2;
 	numberOfFractionalVariables=+totalCount2;
 	if (nIntVars==0)return false;
-	return ((numberOfFractionalVariables*100/nIntVars)<50 );
+	cout<<"Total number of frac vars "<<numberOfFractionalVariables<<" n int vars "<<nIntVars<<	" ratio "<<(numberOfFractionalVariables*100/nIntVars)<<endl;
+	return ((numberOfFractionalVariables*100/nIntVars)<40 );
 
 }

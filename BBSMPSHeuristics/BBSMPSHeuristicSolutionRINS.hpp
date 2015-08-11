@@ -29,7 +29,6 @@ public:
 
 private:
 	int nodeLim;
-	std::map< int ,int> seenCrossovers;
 };
 
 

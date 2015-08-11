@@ -151,7 +151,9 @@ verbosityActivated(true)
     branchingRuleManager.addBranchingRule(mfbr);
 
 
-   
+    BBSMPSPseudoCostBranchingRule *mfbr2= new BBSMPSPseudoCostBranchingRule(100);
+  	  branchingRuleManager.addBranchingRule(mfbr2);
+
     bbIterationCounter=0;
        nodesFathomed=0;
    nodesBecameInteger=0;
@@ -665,11 +667,11 @@ void BBSMPSTree::setNodeLimit(int _nodeLim){
 
     
 
-  	BBSMPSHeuristicLockRounding *hr4= new BBSMPSHeuristicLockRounding(1,1,"HeuristicLockRounding");
+  	BBSMPSHeuristicLockRounding *hr4= new BBSMPSHeuristicLockRounding(1,1000,"HeuristicLockRounding");
 
     heuristicsManager.addHeuristic(hr4);
 
-    BBSMPSHeuristicFixAndDiveLocks *hr5= new BBSMPSHeuristicFixAndDiveLocks(1,10,"FixAndDiveLocks");
+    BBSMPSHeuristicFixAndDiveLocks *hr5= new BBSMPSHeuristicFixAndDiveLocks(1,1000,"FixAndDiveLocks");
 
     heuristicsManager.addHeuristic(hr5);
 
@@ -683,8 +685,8 @@ void BBSMPSTree::setNodeLimit(int _nodeLim){
   //  heuristicsManager.addHeuristic(hr);
     //heuristicsManager.addHeuristic(hr2);
     
-    BBSMPSHeuristicSolutionRINS *hr4= new BBSMPSHeuristicSolutionRINS(10,30,"SolRINS",1000);
-  	heuristicsManager.addHeuristic(hr4);
+    //BBSMPSHeuristicSolutionRINS *hr4= new BBSMPSHeuristicSolutionRINS(25,500,"SolRINS",500);
+  	//heuristicsManager.addHeuristic(hr4);
 
   	//BBSMPSHeuristicBestRINSJump *hr5= new BBSMPSHeuristicBestRINSJump(0,1,"BestRinsJump",250);
   	//heuristicsManager.addHeuristic(hr5);

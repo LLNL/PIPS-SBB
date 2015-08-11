@@ -56,7 +56,7 @@
 #include "BBSMPSHeuristicSolutionRINS.hpp"         
 #include "BBSMPSHeuristicBestRINSJump.hpp"
 #include "BBSMPSHeuristicSolutionPolishing.hpp"
-
+#include "BBSMPSPseudoCostBranchingRule.hpp"
 // Outputs solver status:
 void outputLPStatus(solverState lpStatus);
 

@@ -638,8 +638,61 @@ bool BBSMPSHeuristicLockRounding::runHeuristic(BBSMPSNode* node, denseBAVector &
 
 bool BBSMPSHeuristicLockRounding::shouldItRun(BBSMPSNode* node, denseBAVector &LPRelaxationSolution){
 	if (node->getNodeDepth()<10)return true;
-	int nodeDepth=node->getNodeDepth();
-	assert(nodeDepth>=0);
-	return (nodeDepth%15==0);
+	SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
+	BAContext &ctx= BBSMPSSolver::instance()->getBAContext();
+	
+	int numberOfFractionalVariables=0;
+	int nIntVars=0;
+	for (int col = 0; col < input.nFirstStageVars(); col++)
+	{	
+		if(input.isFirstStageColInteger(col)){
+			numberOfFractionalVariables+=(!isIntFeas(LPRelaxationSolution.getFirstStageVec()[col],intTol));
+			nIntVars++;
+		}
+		
+	}
+	
+	int numberOfFractionalVariables2=0;
+	int nIntVars2=0;
+
+	
+	for (int scen = 0; scen < input.nScenarios(); scen++)
+	{
+		if(ctx.assignedScenario(scen)) {
+			for (int col = 0; col < input.nSecondStageVars(scen); col++)
+			{
+
+				if(input.isSecondStageColInteger(scen,col)){
+					numberOfFractionalVariables2+=(!isIntFeas(LPRelaxationSolution.getSecondStageVec(scen)[col],intTol));
+					nIntVars2++;
+					
+				}
+			}
+		}
+	}
+
+	int totalCount2;
+	int errorFlag = MPI_Allreduce(&numberOfFractionalVariables2,
+		&totalCount2,
+		1,
+		MPI_INT, 
+		MPI_SUM,
+		ctx.comm());
+
+	int totalIntVars2;
+	errorFlag = MPI_Allreduce(&nIntVars2,
+		&totalIntVars2,
+		1,
+		MPI_INT, 
+		MPI_SUM,
+		ctx.comm());
+
+
+	nIntVars+=totalIntVars2;
+	numberOfFractionalVariables=+totalCount2;
+	cout<<"Total number of frac vars "<<numberOfFractionalVariables<<" n int vars "<<nIntVars<<	" ratio "<<(numberOfFractionalVariables*100/nIntVars)<<endl;
+	
+	if (nIntVars==0)return false;
+	return ((numberOfFractionalVariables*100/nIntVars)<40 );
 
 }
