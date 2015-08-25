@@ -169,6 +169,12 @@ bool BBSMPSHeuristicFixAndDiveLocks::runHeuristic(BBSMPSNode* node, denseBAVecto
     int firstStageVars=input.nFirstStageVars();
     int firstStageRows=input.nFirstStageCons();
    
+   	int MAX_ITERS=firstStageVars;
+   	for (int scen = 0; scen < input.nScenarios(); scen++)
+	{
+		MAX_ITERS+=input.nSecondStageVars(scen);
+	}
+
 
 	denseBAVector upLocks;
     denseBAVector downLocks;
@@ -215,8 +221,8 @@ bool BBSMPSHeuristicFixAndDiveLocks::runHeuristic(BBSMPSNode* node, denseBAVecto
     	}
     }
     bool allInteger=(bestLockIndex==-1);
-	
-	while(!allInteger){
+	int iter=0;
+	while(!allInteger && iter<MAX_ITERS){
 		
 		if (bestLock==upLocks.getFirstStageVec()[bestLockIndex] && bestLock==downLocks.getFirstStageVec()[bestLockIndex]){
 
@@ -272,6 +278,7 @@ bool BBSMPSHeuristicFixAndDiveLocks::runHeuristic(BBSMPSNode* node, denseBAVecto
 	    	
 	    	}
 	    }
+	    iter++;
 	    allInteger=(bestLockIndex==-1);
 
 	}
@@ -282,7 +289,7 @@ bool BBSMPSHeuristicFixAndDiveLocks::runHeuristic(BBSMPSNode* node, denseBAVecto
 	bestLock=-1;
 	bestVarObj=COIN_DBL_MAX;
 	 objCont=COIN_DBL_MAX;//We are trying to minimize
-		
+	
 	for (int scen = 0; scen < input.nScenarios(); scen++)
 	{
 		if(ctx.assignedScenario(scen)) {
@@ -308,7 +315,8 @@ bool BBSMPSHeuristicFixAndDiveLocks::runHeuristic(BBSMPSNode* node, denseBAVecto
 	int maxCont;
 	int errorFlag = MPI_Allreduce(&bestLockIndex, &maxCont, 1, MPI_INT,  MPI_MAX, ctx.comm());
 	int iteration=0;
-	while (maxCont>-1){
+	iter =0;
+	while (maxCont>-1 && iteration<MAX_ITERS){
 		iteration++;
 		if (bestLockIndex>-1){
 			// cout<<input.nSecondStageVars(bestFracScen)<<" we are about to update!!"<<mype<<" has chosen "<<bestFracIndex<<" frac part "<<bestFracPart<<" frac scen "<<bestFracScen<<" "<<maxCont<<endl;
@@ -383,7 +391,7 @@ bool BBSMPSHeuristicFixAndDiveLocks::runHeuristic(BBSMPSNode* node, denseBAVecto
 		
 		maxCont=-2;
 	    errorFlag = MPI_Allreduce(&bestLock, &maxCont, 1, MPI_INT,  MPI_MAX, ctx.comm());
-
+	    iter++;
 	   // cout<<iteration<<" "<<mype<<" has chosen "<<bestLockIndex<<" frac part "<<bestLock<<" frac scen "<<bestLockScen<<" "<<maxCont<<endl;
 
 	}
@@ -396,13 +404,14 @@ bool BBSMPSHeuristicFixAndDiveLocks::runHeuristic(BBSMPSNode* node, denseBAVecto
 		denseBAVector solVector=rootSolver.getPrimalSolution();
 		solution=BBSMPSSolution(solVector,rootSolver.getObjective());
 
+		cout<<"DID WE FIND A LOCK ROUNDING SOLUTION "<<isLPIntFeas(solVector)<<" of qual "<<rootSolver.getObjective()<<endl;
+
 		 
 	}
 	//return if success
 	bool success= (!otherThanOptimal && rootSolver.getObjective()<objUB);
 	timesSuccessful+=(success);
 	
-
 	cumulativeTime+=(MPI_Wtime()-startTimeStamp);
 	return success;
 

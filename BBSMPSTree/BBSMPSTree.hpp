@@ -49,7 +49,14 @@
 #include "BBSMPSSolution.hpp"
 #include "BBSMPSHeuristicRINS.hpp"
 #include "BBSMPSHeuristicFixAndDive.hpp"
+#include "BBSMPSHeuristicFixAndDiveLocks.hpp"
 #include "BBSMPSHeuristicCrossover.hpp"
+#include "BBSMPSHeuristicLockRounding.hpp"
+#include "BBSMPSHeuristicMagic.hpp"
+#include "BBSMPSHeuristicSolutionRINS.hpp"         
+#include "BBSMPSHeuristicBestRINSJump.hpp"
+#include "BBSMPSHeuristicSolutionPolishing.hpp"
+
 // Outputs solver status:
 void outputLPStatus(solverState lpStatus);
 
@@ -111,6 +118,8 @@ public:
 
   void setNodeLimit(int _nodeLim);
 
+  void setSolLimit(int _solLim);
+
   bool retrieveBestSolution(BBSMPSSolution &solution);
 
   void branchAndBound();
@@ -122,10 +131,17 @@ public:
   void setVerbosity(bool verbose);
 
 
+  void loadHeuristic(BBSMPSHeuristic *heur);
   void generateIncrementalWarmState(BBSMPSNode* node, const BAFlagVector<variableState> & originalState, const BAFlagVector<variableState> &currentState);
 
 
   BBSMPSNode* topOfHeap();
+
+
+
+  void setLB(double lb){ objLB=lb;};
+  void setUB(double ub){ objUB=ub;};
+
 
 private:
 
@@ -149,7 +165,8 @@ private:
 
   int bbIterationCounter;
 
-
+  int solsDiscoveredInit;
+  int solsDiscoveredLimit;
   int tiLim;
 
   int nodeLim;
@@ -177,16 +194,6 @@ private:
 
     // Auxiliary functions for branching
   int getFirstStageMinIntInfeasCol(const denseBAVector& primalSoln);
-
-
-  // NOTE: MPI standard requires passing ints, not bools
-  int isFirstStageIntFeas(const denseBAVector& primalSoln);
-
-  int getSecondStageMinIntInfeasCol(const denseBAVector& primalSoln, int scen);
-
-  int isSecondStageIntFeas(const denseBAVector& primalSoln, int scen) ;
-
-  bool isLPIntFeas(const denseBAVector& primalSoln);
 
   void setStatusToPrimalFeasible() ;
 

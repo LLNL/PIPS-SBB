@@ -70,6 +70,8 @@ status(LoadedFromFile),
 nodesel(BestBound),
 tiLim(COIN_INT_MAX),
 nodeLim(COIN_INT_MAX),
+solsDiscoveredLimit(COIN_INT_MAX),
+solsDiscoveredInit(0),
 verbosityActivated(true)
 {
 	double timeStart=MPI_Wtime();
@@ -168,6 +170,8 @@ status(LoadedFromFile),
 nodesel(BestBound),
 tiLim(COIN_INT_MAX),
 nodeLim(COIN_INT_MAX),
+solsDiscoveredLimit(COIN_INT_MAX),
+solsDiscoveredInit(0),
 verbosityActivated(true)
 {
 
@@ -270,92 +274,7 @@ void BBSMPSTree::generateIncrementalWarmState(BBSMPSNode* node, const BAFlagVect
 
 }
 
-int BBSMPSTree::getFirstStageMinIntInfeasCol(const denseBAVector& primalSoln) {
-	
-	SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
-	int col;
 
-		    // Return first index of integer variable with fractional value
-	for (col = 0; col < input.nFirstStageVars(); col++)
-	{
-
-		bool isColInteger = input.isFirstStageColInteger(col);
-		bool isValInteger = isIntFeas(primalSoln.getFirstStageVec()[col],
-			intTol);
-
-			// If the (col)th 1st stage primal variable is integer,
-			// but has a fractional value, return idx
-		if(isColInteger && !isValInteger) return col;
-	}
-
-		    // Otherwise, 1st stage is integer feasible: return -1;
-	return -1;
-}
-
-
-
-
-		// NOTE: MPI standard requires passing ints, not bools
-int BBSMPSTree::isFirstStageIntFeas(const denseBAVector& primalSoln) {
-	return (getFirstStageMinIntInfeasCol(primalSoln) == -1);
-}
-
-int BBSMPSTree::getSecondStageMinIntInfeasCol(const denseBAVector& primalSoln, int scen) {
-	SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
-	BAContext &ctx=BBSMPSSolver::instance()->getBAContext();
-    // Only makes sense when called by process that owns scenario scen
-	assert(ctx.assignedScenario(scen));
-
-	int col;
-	for (col = 0; col < input.nSecondStageVars(scen); col++)
-	{
-		bool isColInteger = input.isSecondStageColInteger(scen, col);
-		bool isValInteger = isIntFeas(primalSoln.getSecondStageVec(scen)[col],
-			intTol);
-
-			// If the (col)th 2nd stage primal variable of the (scen)th
-			// scenario is integer, but has fractional value, return idx
-		if (isColInteger && !isValInteger) return col;
-	}
-
-		    // Otherwise, return -1;
-	return -1;
-}
-
-int BBSMPSTree::isSecondStageIntFeas(const denseBAVector& primalSoln, int scen) {
-	return (getSecondStageMinIntInfeasCol(primalSoln, scen) == -1);
-}
-
-bool BBSMPSTree::isLPIntFeas(const denseBAVector& primalSoln) {
-
-	SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
-	BAContext &ctx=BBSMPSSolver::instance()->getBAContext();
-	int is1stStageIntFeas(isFirstStageIntFeas(primalSoln));
-
-		    // Check to see if all 2nd stage scenarios on current MPI rank are
-		    // integer feasible. At first scenario that is integer infeasible,
-		    // we know that the primal solution is not integer feasible.
-	int isMyRankIntFeas(1);
-	for (int scen = 0; scen < input.nScenarios(); scen++) {
-		if(ctx.assignedScenario(scen)) {
-			if(!isSecondStageIntFeas(primalSoln, scen)) {
-				isMyRankIntFeas = 0;
-				break;
-			}
-		}
-	}
-
-	int is2ndStageIntFeas(0);
-	int errorFlag = MPI_Allreduce(&isMyRankIntFeas,
-		&is2ndStageIntFeas,
-		1,
-		MPI_INT,
-						  MPI_LAND, // MPI logical and
-						  ctx.comm());
-		    // TODO: Some error handling here
-
-	return (is1stStageIntFeas && is2ndStageIntFeas);
-}
 
 
 
@@ -402,7 +321,13 @@ SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
 			status.setStatusToStopped();
 			break;
 		}
-		
+		//cout<<"Checking if limit reached "<<BBSMPSSolver::instance()->getSolPoolSize()-solsDiscoveredInit<<" "<<solsDiscoveredLimit<<" "<<(BBSMPSSolver::instance()->getSolPoolSize()-solsDiscoveredInit>=solsDiscoveredLimit)<<endl;
+		if (BBSMPSSolver::instance()->getSolPoolSize()-solsDiscoveredInit>=solsDiscoveredLimit){
+			if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Solution Limit reached.";
+			status.setStatusToStopped();
+			break;
+		}
+
 		if (bbIterationCounter>nodeLim){
 			if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Node Limit reached.";
 			status.setStatusToStopped();
@@ -664,7 +589,7 @@ SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
 		if (children.size()>0){
 			for (int i=0; i<children.size();i++){
 				generateIncrementalWarmState(children[i], ps, states);
-			
+				children[i]->setObjective(lpObj);
 
 				heap.push(children[i]);
 			}
@@ -716,27 +641,62 @@ void BBSMPSTree::setNodeLimit(int _nodeLim){
 
 
   void BBSMPSTree::loadSimpleHeuristics(){
-  	BBSMPSHeuristicRounding *hr= new BBSMPSHeuristicRounding(1,25,"SimpleRounding");
+  	
+  	/*
 
+	BBSMPSHeuristicRounding *hr= new BBSMPSHeuristicRounding(1,25,"SimpleRounding");
     heuristicsManager.addHeuristic(hr);
+
+    BBSMPSHeuristicFixAndDive *hr2= new BBSMPSHeuristicFixAndDive(1,15,"FixAndDive");
+	heuristicsManager.addHeuristic(hr2);
+
+  	BBSMPSHeuristicLockRounding *hr3= new BBSMPSHeuristicLockRounding(1,1,"LockRounding");
+  	heuristicsManager.addHeuristic(hr3);
+
+  	
+*/
+    
+
+
+
+   // BBSMPSHeuristicMagic *hr4= new BBSMPSHeuristicMagic(1,1,"BBSMPSHeuristicMagic");
+
+    //heuristicsManager.addHeuristic(hr4);
 
     
 
-    BBSMPSHeuristicFixAndDive *hr2= new BBSMPSHeuristicFixAndDive(1,25,"FixAndDive");
+  	BBSMPSHeuristicLockRounding *hr4= new BBSMPSHeuristicLockRounding(1,1,"HeuristicLockRounding");
 
-    heuristicsManager.addHeuristic(hr2);
+    heuristicsManager.addHeuristic(hr4);
+
+    BBSMPSHeuristicFixAndDiveLocks *hr5= new BBSMPSHeuristicFixAndDiveLocks(1,10,"FixAndDiveLocks");
+
+    heuristicsManager.addHeuristic(hr5);
 
   }
 
   void BBSMPSTree::loadMIPHeuristics(){
-  	//BBSMPSHeuristicRINS *hr= new BBSMPSHeuristicRINS(1,1,"RINS",200);
+  	//BBSMPSHeuristicRINS *hr= new BBSMPSHeuristicRINS(1,75,"RINS",200);
 	//BBSMPSHeuristicRENS *hr2= new BBSMPSHeuristicRENS(1,1,"RENS",200);
-  	BBSMPSHeuristicCrossover *hr3= new BBSMPSHeuristicCrossover(1,1,"Crossover",200);
-  	heuristicsManager.addHeuristic(hr3);
-    //heuristicsManager.addHeuristic(hr);
+  //	BBSMPSHeuristicCrossover *hr3= new BBSMPSHeuristicCrossover(0,1,"Crossover",1000);
+  //	heuristicsManager.addHeuristic(hr3);
+  //  heuristicsManager.addHeuristic(hr);
     //heuristicsManager.addHeuristic(hr2);
+    
+    BBSMPSHeuristicSolutionRINS *hr4= new BBSMPSHeuristicSolutionRINS(10,30,"SolRINS",1000);
+  	heuristicsManager.addHeuristic(hr4);
+
+  	//BBSMPSHeuristicBestRINSJump *hr5= new BBSMPSHeuristicBestRINSJump(0,1,"BestRinsJump",250);
+  	//heuristicsManager.addHeuristic(hr5);
+
+   // BBSMPSHeuristicSolutionPolishing *hr6= new BBSMPSHeuristicSolutionPolishing(0,1,"BBSMPSHeuristicSolutionPolishing",5000);
+  //	heuristicsManager.addHeuristic(hr6);
+
   }
 
+  void BBSMPSTree::loadHeuristic(BBSMPSHeuristic *heur){
+  	heuristicsManager.addHeuristic(heur);
+  }
   BBSMPSNode* BBSMPSTree::topOfHeap(){
   	return heap.top();
   }
@@ -747,4 +707,9 @@ void BBSMPSTree::setNodeLimit(int _nodeLim){
   }
 
 
+void BBSMPSTree::setSolLimit(int _solLim){
+	solsDiscoveredInit=BBSMPSSolver::instance()->getSolPoolSize();
 
+   solsDiscoveredLimit=_solLim;
+
+}

@@ -520,6 +520,12 @@ bool BBSMPSHeuristicLockRounding::runHeuristic(BBSMPSNode* node, denseBAVector &
     generateLocks2(upLocks,downLocks);
     //cout<<"ch3"<<endl;
     
+	int MAX_ITERS=firstStageVars;
+   	for (int scen = 0; scen < input.nScenarios(); scen++)
+	{
+		MAX_ITERS+=input.nSecondStageVars(scen);
+	}
+
 
     denseBAVector roundedSolution(LPRelaxationSolution);
 
@@ -533,7 +539,9 @@ bool BBSMPSHeuristicLockRounding::runHeuristic(BBSMPSNode* node, denseBAVector &
 	node->reconstructWarmStartState(ps);
 	rootSolver.setStates(ps);
 //cout<<"ch5"<<endl;
-    while (!isLPFeasible){
+	int iter=0;
+    while (!isLPFeasible && iter<MAX_ITERS){
+    	iter++;
     	////cout<<"ITERATIOOOOOOOOOON!!! "<<endl;
 	    bool done=false;
 	    //cout<<"ch6"<<endl;
@@ -613,6 +621,8 @@ bool BBSMPSHeuristicLockRounding::runHeuristic(BBSMPSNode* node, denseBAVector &
 	if(!otherThanOptimal){
 		denseBAVector solVector=rootSolver.getPrimalSolution();
 		solution=BBSMPSSolution(solVector,rootSolver.getObjective());
+		cout<<"DID WE FIND A LOCK ROUNDING SOLUTION "<<isLPIntFeas(solVector)<<" of qual "<<rootSolver.getObjective()<<endl;
+
 		
 	}
 	//cout<<"ch14"<<endl;
