@@ -22,13 +22,14 @@
 #include "SMPSInput.hpp"
 #include "BAData.hpp"
 #include "BBSMPSBranchingInfo.hpp"
+#include "BBSMPSCuttingPlane.hpp"
 #include "PIPSSInterface.hpp"
 #include <boost/scoped_ptr.hpp>
 #include <cstdlib>
 #include <cmath>
 #include <vector>
 #include <cassert> // C-style assertions
-#include <utility>
+#include "BBSMPSLogging.hpp"
 
 class BBSMPSNode {
 public:
@@ -90,6 +91,8 @@ public:
 
   void addBranchingInformation(BBSMPSBranchingInfo& bi);
 
+  void addCuttingPlane(BBSMPSCuttingPlane &cp);
+
   void incrementAliveChildren();
 
   void decrementAliveChildren();
@@ -102,10 +105,17 @@ public:
 
   void reconstructWarmStartState(BAFlagVector<variableState> &state);
 
-
   void getAllBranchingInformation(std::vector<BBSMPSBranchingInfo> &biVector);
 
   void getAllBranchingInformation(denseBAVector &lb,denseBAVector &ub);
+
+  void getAllCuttingPlanes(std::vector<BBSMPSCuttingPlane*> &cpVector);
+
+  void getParentNodeCuttingPlanes(std::vector<BBSMPSCuttingPlane*> &cpVector);
+    
+  void  getGrandParentCuttingPlanes(std::vector<BBSMPSCuttingPlane*> &cpVector);
+
+  void getCurrentNodeCuttingPlanes(std::vector<BBSMPSCuttingPlane*> &cpVector);
 
   int getNodeNumber() const;
 
@@ -145,11 +155,19 @@ private:
   double objectiveValue; 
 
 
+  //Incremental cutting plane information relative to this node
+  std::vector<BBSMPSCuttingPlane> cuttingPlanes;
+
   // TODO: Local cut objects; Global cuts are stored in the B&B tree.
 
   void auxCopyAllBranchingInformation(std::vector<BBSMPSBranchingInfo> &biVector);
 
+  void auxCopyAllCuttingPlaneInformation(std::vector<BBSMPSCuttingPlane*> &cpVector);
+
   int getBranchingInfoSize();
+
+  int getNumberOfCuttingPlanes();
+
 
   BBSMPSNode(); // Disallow default constructor
 

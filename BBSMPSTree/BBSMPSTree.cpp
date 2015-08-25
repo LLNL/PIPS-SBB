@@ -88,7 +88,7 @@ verbosityActivated(true)
 
     	
     PIPSSInterface &rootSolver= BBSMPSSolver::instance()->getPIPSInterface();
-    BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
+    const BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
     BAContext &ctx=BBSMPSSolver::instance()->getBAContext();
     int mype=BBSMPSSolver::instance()->getMype();
 
@@ -233,7 +233,7 @@ void BBSMPSTree::generateIncrementalWarmState(BBSMPSNode* node, const BAFlagVect
 
 	SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
 	BAContext &ctx=BBSMPSSolver::instance()->getBAContext();
-	BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
+	const BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
 	
 
 	std::vector< std::pair < BAIndex, variableState > > changes;
@@ -578,7 +578,7 @@ SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
 		}
 
 		double lpObj = rootSolver.getObjective();
-		BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
+		const BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
 		BAContext &ctx=BBSMPSSolver::instance()->getBAContext();
 		BAFlagVector<variableState> states(dimsSlacks, ctx, PrimalVector);
 		rootSolver.getStates(states);

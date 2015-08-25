@@ -37,5 +37,6 @@ extern  int isSecondStageIntFeas(const denseBAVector& primalSoln, int scen) ;
 
 extern  bool isLPIntFeas(const denseBAVector& primalSoln);
 
+extern double floorFracPart(double x); 
 
 #endif

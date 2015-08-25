@@ -29,7 +29,7 @@ void generateLocks2(denseBAVector & upLocks, denseBAVector &downLocks){
 	SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
 	
 	const BADimensionsSlacks &originalDimensions= BBSMPSSolver::instance()->getBADimensionsSlacks();
-	BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
+	const BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
     BAContext &ctx=BBSMPSSolver::instance()->getBAContext();
     PIPSSInterface &rootSolver= BBSMPSSolver::instance()->getPIPSInterface();
    
@@ -148,7 +148,7 @@ int findAndFixFirstStageConstraint(denseBAVector &roundedSolution,denseBAVector 
 	int mype=BBSMPSSolver::instance()->getMype();
 	
 	const BADimensionsSlacks &originalDimensions= BBSMPSSolver::instance()->getBADimensionsSlacks();
-	BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
+	const BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
     BAContext &ctx=BBSMPSSolver::instance()->getBAContext();
     PIPSSInterface &rootSolver= BBSMPSSolver::instance()->getPIPSInterface();
    	const denseBAVector varObjectives = rootSolver.getVarObjective();
@@ -356,7 +356,7 @@ int findAndFixSecondStageConstraint(denseBAVector &roundedSolution,denseBAVector
 	SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
 	
 	const BADimensionsSlacks &originalDimensions= BBSMPSSolver::instance()->getBADimensionsSlacks();
-	BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
+	const BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
     BAContext &ctx=BBSMPSSolver::instance()->getBAContext();
     PIPSSInterface &rootSolver= BBSMPSSolver::instance()->getPIPSInterface();
     const denseBAVector varObjectives = rootSolver.getVarObjective();
@@ -503,7 +503,7 @@ bool BBSMPSHeuristicLockRounding::runHeuristic(BBSMPSNode* node, denseBAVector &
 	SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
 	
 	const BADimensionsSlacks &originalDimensions= BBSMPSSolver::instance()->getBADimensionsSlacks();
-	BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
+	const BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
     BAContext &ctx=BBSMPSSolver::instance()->getBAContext();
     PIPSSInterface &rootSolver= BBSMPSSolver::instance()->getPIPSInterface();
    

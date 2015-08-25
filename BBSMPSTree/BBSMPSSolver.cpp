@@ -24,8 +24,12 @@ BADimensions& BBSMPSSolver::getBADimensions(){
   return dims; 
 }
 
-BADimensionsSlacks& BBSMPSSolver::getBADimensionsSlacks(){
-  return dimsSlacks;
+const BADimensionsSlacks& BBSMPSSolver::getBADimensionsSlacks(){
+  return rootSolver.getSlackDims();
+}
+
+const BADimensionsSlacks& BBSMPSSolver::getOriginalBADimensionsSlacks(){
+  return originalDims;
 }
 
 denseBAVector& BBSMPSSolver::getOriginalLB(){
@@ -74,6 +78,8 @@ pre(problemData,input),
 dims(problemData.dims.inner),
 dimsSlacks(dims),
 startTimeStamp(MPI_Wtime()){
+  originalDims=BADimensionsSlacks(rootSolver.getSlackDims().inner);
+  
   lb = rootSolver.getLB();
   ub = rootSolver.getUB();
 

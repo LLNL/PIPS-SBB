@@ -13,7 +13,7 @@ struct doubleint { double d; int i;};
         //rootSolver.setStates(warmstart);
         
         SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
-        BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
+        const BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
         BAContext &ctx=BBSMPSSolver::instance()->getBAContext();
          
 
@@ -158,7 +158,7 @@ struct doubleint { double d; int i;};
 
 	BBSMPSPseudoCostBranchingRule::BBSMPSPseudoCostBranchingRule(int priority): BBSMPSBranchingRule(priority){
 		  name="Max Fractional Branching Rule";
-          BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
+         const BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
         BAContext &ctx=BBSMPSSolver::instance()->getBAContext();
          BAFlagVector<variableState> warmstart(BBSMPSSolver::instance()->getOriginalWarmStart());
     

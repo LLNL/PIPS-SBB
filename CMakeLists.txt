@@ -99,13 +99,19 @@ include_directories(${PIPS_DIR}/PIPS-S/Drivers)
 include_directories(${PIPS_DIR}/SolverInterface)
 include_directories(${PIPS_DIR}/Input)
 
-
+include_directories(BBSMPSCuttingPlanes)
 include_directories(BBSMPSBranching)
 include_directories(BBSMPSTree)
 include_directories(BBSMPSHeuristics)
 include_directories(BBSMPSUtils)
 include_directories(.)
-add_library(pipssbb BBSMPSTree/BBSMPSTree.cpp 
+add_library(pipssbb
+	BBSMPSCuttingPlanes/BBSMPSCuttingPlanesManager.cpp
+	BBSMPSCuttingPlanes/BBSMPSCuttingPlaneGenerator.cpp
+	BBSMPSCuttingPlanes/BBSMPSCuttingPlaneGeneratorMIR.cpp
+	BBSMPSCuttingPlanes/BBSMPSCuttingPlaneGeneratorGMI.cpp
+	BBSMPSCuttingPlanes/BBSMPSCuttingPlane.cpp
+	BBSMPSTree/BBSMPSTree.cpp 
 	BBSMPSTree/BBSMPSNode.cpp 
 	BBSMPSBranching/BBSMPSBranchingInfo.cpp
 	BBSMPSBranching/BBSMPSBranchingRuleManager.cpp 

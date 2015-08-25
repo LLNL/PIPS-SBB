@@ -30,7 +30,7 @@ void generateLocks(denseBAVector & upLocks, denseBAVector &downLocks){
 	SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
 	
 	const BADimensionsSlacks &originalDimensions= BBSMPSSolver::instance()->getBADimensionsSlacks();
-	BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
+	const BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
     BAContext &ctx=BBSMPSSolver::instance()->getBAContext();
     PIPSSInterface &rootSolver= BBSMPSSolver::instance()->getPIPSInterface();
    
@@ -157,7 +157,7 @@ bool BBSMPSHeuristicFixAndDiveLocks::runHeuristic(BBSMPSNode* node, denseBAVecto
 	SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
 	
 	const BADimensionsSlacks &originalDimensions= BBSMPSSolver::instance()->getBADimensionsSlacks();
-	BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
+	const BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
     BAContext &ctx=BBSMPSSolver::instance()->getBAContext();
     PIPSSInterface &rootSolver= BBSMPSSolver::instance()->getPIPSInterface();
     const denseBAVector varObjectives = rootSolver.getVarObjective();

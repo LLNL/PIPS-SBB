@@ -16,7 +16,7 @@ bool BBSMPSHeuristicMagic::runHeuristic(BBSMPSNode* node, denseBAVector &LPRelax
 	SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
 	
 	const BADimensionsSlacks &originalDimensions= BBSMPSSolver::instance()->getBADimensionsSlacks();
-	BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
+	const BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
     BAContext &ctx=BBSMPSSolver::instance()->getBAContext();
     PIPSSInterface &rootSolver= BBSMPSSolver::instance()->getPIPSInterface();
    

@@ -32,7 +32,6 @@
 #include "SMPSInput.hpp"
 #include "BAData.hpp"
 #include "PIPSSInterface.hpp"
-#include "BBSMPSNode.hpp"
 #include "Presolve.hpp"
 #include "BBSMPSLogging.hpp"
 #include "BBSMPSSolution.hpp"
@@ -52,7 +51,8 @@ public:
   SMPSInput& getSMPSInput();
   PIPSSInterface& getPIPSInterface();
   BADimensions& getBADimensions();
-  BADimensionsSlacks& getBADimensionsSlacks();
+  const BADimensionsSlacks& getOriginalBADimensionsSlacks();
+  const BADimensionsSlacks& getBADimensionsSlacks();
   denseBAVector& getOriginalLB();
   denseBAVector& getOriginalUB();
   const BAFlagVector<variableState>& getOriginalWarmStart();
@@ -85,6 +85,7 @@ private:
   PIPSSInterface rootSolver; // PIPS-S instance for root LP relaxation
     Presolve pre;
   BADimensions dims; // Dimension object for instantiating warm start information
+  BADimensionsSlacks originalDims;
   BADimensionsSlacks dimsSlacks; // Dimension object for warm start info
   denseBAVector lb;
   denseBAVector ub;

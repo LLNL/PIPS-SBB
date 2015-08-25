@@ -16,6 +16,9 @@ double roundToNearestInteger(double x){
 	return ceil(x);
 }
 
+double floorFracPart(double x) {
+	return x - floor(x);
+}
 
 int getFirstStageMinIntInfeasCol(const denseBAVector& primalSoln) {
 	

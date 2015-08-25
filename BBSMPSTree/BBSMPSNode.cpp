@@ -93,6 +93,14 @@ void BBSMPSNode::auxCopyAllBranchingInformation(std::vector<BBSMPSBranchingInfo>
   
 }
 
+void BBSMPSNode::auxCopyAllCuttingPlaneInformation(std::vector<BBSMPSCuttingPlane*> &cpVector){
+  if (parent!=NULL)parent->auxCopyAllCuttingPlaneInformation(cpVector);
+   for (int i=0; i< cuttingPlanes.size(); i++){
+    cpVector.push_back(&cuttingPlanes[i]);
+  }  
+  
+}
+
 void BBSMPSNode::incrementAliveChildren(){
   childrenAlive++;
 } 
@@ -205,6 +213,59 @@ void  BBSMPSNode::setNodeDepth(int depth){
 int BBSMPSNode::getNodeDepth(){
   return nodeDepth;
 }
+
+void BBSMPSNode::addCuttingPlane(BBSMPSCuttingPlane &cp){
+  cuttingPlanes.push_back(cp);
+}
+
+int BBSMPSNode::getNumberOfCuttingPlanes(){
+  return cuttingPlanes.size();
+}
+
+void BBSMPSNode::getAllCuttingPlanes(std::vector<BBSMPSCuttingPlane*> &cpVector){
+  BBSMPSNode* n_ptr = parent;
+  int nCuttingPlanes=getNumberOfCuttingPlanes();
+  while(n_ptr!=NULL){
+    nCuttingPlanes+=n_ptr->getNumberOfCuttingPlanes();
+    n_ptr=n_ptr->parent;
+
+  }
+  cpVector.reserve(nCuttingPlanes);
+  auxCopyAllCuttingPlaneInformation(cpVector);
+
+}
+
+
+  void BBSMPSNode::getGrandParentCuttingPlanes(std::vector<BBSMPSCuttingPlane*> &cpVector){
+    BBSMPSNode* n_ptr = parent;
+    if (n_ptr!=NULL) n_ptr=n_ptr->parent;
+    int nCuttingPlanes=0;
+    while(n_ptr!=NULL){
+      nCuttingPlanes+=n_ptr->getNumberOfCuttingPlanes();
+      n_ptr=n_ptr->parent;
+
+    }
+    if (nCuttingPlanes>0){
+      cpVector.reserve(nCuttingPlanes);
+      parent->parent->auxCopyAllCuttingPlaneInformation(cpVector);
+    }
+    
+
+  }
+
+  void BBSMPSNode::getParentNodeCuttingPlanes(std::vector<BBSMPSCuttingPlane*> &cpVector){
+    
+    if (parent!=NULL) parent->getCurrentNodeCuttingPlanes(cpVector);
+
+
+  }
+
+   void BBSMPSNode::getCurrentNodeCuttingPlanes(std::vector<BBSMPSCuttingPlane*> &cpVector){
+    for (int i=0; i< cuttingPlanes.size(); i++){
+      cpVector.push_back(&cuttingPlanes[i]);
+    }  
+
+  }
 
 
 
