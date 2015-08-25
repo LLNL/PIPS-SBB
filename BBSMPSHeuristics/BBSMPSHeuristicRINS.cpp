@@ -52,9 +52,9 @@ bool BBSMPSHeuristicRINS::runHeuristic(BBSMPSNode* node, denseBAVector &nodeSolu
 	}
 	//Create a node
 	BBSMPSNode rootNode(NULL, bInfos);
-	BAFlagVector<variableState> ps;
-	node->getWarmStartState(ps);
-	rootNode.setWarmStartState(ps);
+	//BAFlagVector<variableState> ps(BBSMPSSolver::instance()->getOriginalWarmStart());
+	//node->reconstructWarmStartState(ps);
+	//rootNode.setWarmStartState(ps);
 
 	//Create a tree && Add node to tree
 	BBSMPSTree bb(rootNode,COIN_DBL_MIN,objUB);
@@ -104,8 +104,8 @@ bool BBSMPSHeuristicRINS::shouldItRun(BBSMPSNode* node, denseBAVector &nodeSolut
 			{
 
 				if(input.isSecondStageColInteger(scen,col)){
-					double LPRValue=LPrelaxation.getFirstStageVec()[col];
-					double solValue=nodeSolution.getFirstStageVec()[col];
+					double LPRValue=LPrelaxation.getSecondStageVec(scen)[col];
+					double solValue=nodeSolution.getSecondStageVec(scen)[col];
 					if (fabs(LPRValue-solValue)>intTol || !isIntFeas(solValue,intTol)){//Then we fix the variable
 						numberOfFreeVars2++;
 					}

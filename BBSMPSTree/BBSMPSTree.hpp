@@ -33,6 +33,9 @@
 #include <cmath> // for floor, ceil, abs functions
 #include <algorithm> // for min
 #include <set>
+#include <utility> 
+
+
 
 #include "BBSMPSMaxFracBranchingRule.hpp"
 #include "BBSMPSBranchingRuleManager.hpp"
@@ -45,6 +48,7 @@
 #include "BBSMPSLogging.hpp"
 #include "BBSMPSSolution.hpp"
 #include "BBSMPSHeuristicRINS.hpp"
+#include "BBSMPSHeuristicFixAndDive.hpp"
 // Outputs solver status:
 void outputLPStatus(solverState lpStatus);
 
@@ -120,9 +124,15 @@ public:
   void setVerbosity(bool verbose);
 
   void printSolutionStatistics();
+
+  void generateIncrementalWarmState(BBSMPSNode* node, const BAFlagVector<variableState> & originalState, const BAFlagVector<variableState> &currentState);
+
+
   BBSMPSNode* topOfHeap();
 
 private:
+
+
 
     // Node selection rule, determines which node is chosen next. By default, it is bestbound, 
   // by using the min-heap. To handle other rules, we will need to refactor priority_queue to vector,

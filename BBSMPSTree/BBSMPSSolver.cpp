@@ -3,6 +3,7 @@ using namespace std;
 
 BBSMPSSolver *BBSMPSSolver::solverInstance = 0;
 
+
 BAContext& BBSMPSSolver::getBAContext(){
   return ctx;
 }
@@ -59,8 +60,8 @@ ctx(MPI_COMM_WORLD),
 mype(ctx.mype()),
 input(_input),
 problemData(input,ctx),
-pre(problemData,input),
 rootSolver(problemData, PIPSSInterface::useDual),
+pre(problemData,input),
 dims(problemData.dims.inner),
 dimsSlacks(dims){
   lb = rootSolver.getLB();
@@ -71,15 +72,27 @@ bool BBSMPSSolver::isInitialized(){
   return (solverInstance!=NULL);
 }
 
+void BBSMPSSolver::deInitialize(){
+  if(isInitialized()){
+    delete solverInstance;
+  }
+}
+
+const BAFlagVector<variableState>& BBSMPSSolver::getOriginalWarmStart(){
+  return originalWarmStart;
+}
+void BBSMPSSolver::setOriginalWarmStart(BAFlagVector<variableState>&warmStart){
+  originalWarmStart=warmStart;
+}
 
 void BBSMPSSolver::printPresolveStatistics(){
 
 
   BBSMPS_ALG_LOG_SEV(warning)<<"~~~~~~~~~~~~~~~PRESOLVE STATISTICS~~~~~~~~~~~~~~~~";
-  BBSMPS_ALG_LOG_SEV(warning)<<"Number Of Presolves:"<<pre.numPresolves<<":Number Of Bound Chgs:"<<pre.numBdsChg;
+   
+    BBSMPS_ALG_LOG_SEV(warning)<<"Number Of Presolves:"<<pre.numPresolves<<":Number Of Bound Chgs:"<<pre.numBdsChg;
   BBSMPS_ALG_LOG_SEV(warning)<<"Number Of RHS Chgs:"<<pre.numRhsChg<<":Number Of Coefficient Chgs:"<<pre.numCoeffChg;
-    
-    
+   
 
 BBSMPS_ALG_LOG_SEV(warning)<<"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~";
 }

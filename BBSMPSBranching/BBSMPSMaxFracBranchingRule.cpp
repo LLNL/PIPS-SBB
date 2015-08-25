@@ -147,7 +147,7 @@ void BBSMPSMaxFracBranchingRule::branchOnSecondStage(BBSMPSNode * node, std::vec
 		bInfosRightKid.push_back( BBSMPSBranchingInfo(branchCol, floor(primalSoln.getSecondStageVec(branchScen)[branchCol]), 'U', 2,branchScen));
 	}
 
-	
+
 	BBSMPSNode *leftKidNode= new BBSMPSNode(node, bInfosLeftKid);
 	BBSMPSNode *rightKidNode= new BBSMPSNode(node, bInfosRightKid);
 	childNodes.push_back(leftKidNode);

@@ -28,14 +28,14 @@
 #include <cmath>
 #include <vector>
 #include <cassert> // C-style assertions
-
+#include <utility>
 
 class BBSMPSNode {
 public:
 
   // Construct node from {lower, upper} bounds, obj val of parent node
   BBSMPSNode(double _objectiveValue,const BAFlagVector<variableState> &states);
-
+  BBSMPSNode(double _objectiveValue, const std::vector< std::pair < BAIndex, variableState > > &states);
   BBSMPSNode(BBSMPSNode* parent,std::vector<BBSMPSBranchingInfo>& bInfos);
 
   // Add copy constructor so that priority_queue can use it for
@@ -65,7 +65,6 @@ public:
     }
 
     // Copy-assign each member individually
-    warmStartState = sourceNode.warmStartState;
     parent = sourceNode.parent;
     objectiveValue = sourceNode.objectiveValue;
     childrenAlive = sourceNode.childrenAlive;
@@ -96,10 +95,13 @@ public:
   void decrementAliveChildren();
 
   void eliminate();
-  
-  void setWarmStartState(BAFlagVector<variableState> &state);
 
-  void getWarmStartState(BAFlagVector<variableState> &state);
+  void deallocateWarmStartState();
+  
+  void setIncrementalWarmStartState(std::vector< std::pair < BAIndex, variableState > > &changes);
+
+  void reconstructWarmStartState(BAFlagVector<variableState> &state);
+
 
   void getAllBranchingInformation(std::vector<BBSMPSBranchingInfo> &biVector);
 
@@ -133,9 +135,11 @@ private:
   //Incremental branching information relative to this node
   std::vector<BBSMPSBranchingInfo> branchingInfos;
 
+
   // variable states for warm start information; each index is
   // one of {Basic, AtLower, AtUpper}
-  BAFlagVector<variableState> warmStartState;
+
+  std::vector< std::pair < BAIndex, variableState > > partialStartState;
 
   // objective function of the actual node (not its parent)
   double objectiveValue; 

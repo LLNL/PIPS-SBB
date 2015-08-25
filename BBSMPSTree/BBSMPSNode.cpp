@@ -4,22 +4,25 @@ using namespace std;
 
 int BBSMPSNode::nodeCounter=0;
 
+
 // Construct node from {lower, upper} bounds, obj val of parent node
-BBSMPSNode::BBSMPSNode(double _objectiveValue, const BAFlagVector<variableState> &states):
-warmStartState(states) {
+BBSMPSNode::BBSMPSNode(double _objectiveValue, const std::vector< std::pair < BAIndex, variableState > > &states):
+partialStartState(states) {
   parent =NULL;
   objectiveValue=_objectiveValue;
   childrenAlive=0;
   nodeNumber=(++nodeCounter);
   nodeDepth=-1;
   if (nodeCounter==1) nodeDepth=0;
+  
 }
+
 
   // Add copy constructor so that priority_queue can use it for
   // instantiation because denseBAVector and BAFlagVector do not have
   // assignment operators or copy constructors.
 BBSMPSNode::BBSMPSNode(const BBSMPSNode &sourceNode):
-warmStartState(sourceNode.warmStartState),
+partialStartState(sourceNode.partialStartState),
 parent(sourceNode.parent),
 objectiveValue(sourceNode.objectiveValue),
 childrenAlive(sourceNode.childrenAlive),
@@ -99,33 +102,38 @@ void BBSMPSNode::decrementAliveChildren(){
 
   childrenAlive--;
   if (childrenAlive==0){
+
     delete this;
   }
+
+
 }
 
 
 void BBSMPSNode::eliminate(){
 
   if (childrenAlive==0){
+
     delete this;
   }
 
+}
 
+void BBSMPSNode::setIncrementalWarmStartState(std::vector< std::pair < BAIndex, variableState > > &changes){
+  partialStartState=changes;
 }
 
 
-void BBSMPSNode::setWarmStartState(BAFlagVector<variableState> &state){
+void BBSMPSNode::reconstructWarmStartState(BAFlagVector<variableState> &state){
 
-  warmStartState=state;
-
-  
+  if (parent!=NULL) parent->reconstructWarmStartState(state);
+  for (int i=0; i< partialStartState.size(); i++){
+    //std::cout<<"Updating "<<partialStartState[i].first.scen<<" "<<partialStartState[i].first.idx<<" with "<<partialStartState[i].second<<endl;
+    state.getVec(partialStartState[i].first.scen)[partialStartState[i].first.idx]=partialStartState[i].second;
+  }
 }
 
-void BBSMPSNode::getWarmStartState(BAFlagVector<variableState> &state){
 
-  state=warmStartState;
-
-}
 
 
 int BBSMPSNode::getBranchingInfoSize(){
@@ -197,6 +205,8 @@ void  BBSMPSNode::setNodeDepth(int depth){
 int BBSMPSNode::getNodeDepth(){
   return nodeDepth;
 }
+
+
 
 
 

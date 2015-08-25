@@ -104,6 +104,7 @@ include_directories(BBSMPSBranching)
 include_directories(BBSMPSTree)
 include_directories(BBSMPSHeuristics)
 include_directories(BBSMPSUtils)
+include_directories(.)
 add_library(pipssbb BBSMPSTree/BBSMPSTree.cpp 
 	BBSMPSTree/BBSMPSNode.cpp 
 	BBSMPSBranching/BBSMPSBranchingInfo.cpp
@@ -117,6 +118,7 @@ add_library(pipssbb BBSMPSTree/BBSMPSTree.cpp
 	BBSMPSHeuristics/BBSMPSHeuristicRounding.cpp
 	BBSMPSHeuristics/BBSMPSHeuristicRINS.cpp
 	BBSMPSHeuristics/BBSMPSHeuristicRENS.cpp
+	BBSMPSHeuristics/BBSMPSHeuristicFixAndDive.cpp
 	BBSMPSTree/BBSMPSSolver.cpp 
 	BBSMPSTree/BBSMPSSolverState.cpp
 	BBSMPSTree/BBSMPSSolution.cpp)

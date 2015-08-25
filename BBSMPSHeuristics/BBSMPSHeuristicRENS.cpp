@@ -63,9 +63,9 @@ bool BBSMPSHeuristicRENS::runHeuristic(BBSMPSNode* node, denseBAVector &nodeSolu
 	}
 	//Create a node
 	BBSMPSNode rootNode(NULL, bInfos);
-	BAFlagVector<variableState> ps;
-	node->getWarmStartState(ps);
-	rootNode.setWarmStartState(ps);
+	//BAFlagVector<variableState> ps(BBSMPSSolver::instance()->getOriginalWarmStart());
+	//node->reconstructWarmStartState(ps);
+	//rootNode.setWarmStartState(ps);
 
 	//Create a tree && Add node to tree
 	BBSMPSTree bb(rootNode,COIN_DBL_MIN,objUB);

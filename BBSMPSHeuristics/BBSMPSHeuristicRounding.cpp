@@ -16,6 +16,8 @@ bool BBSMPSHeuristicRounding::runHeuristic(BBSMPSNode* node, denseBAVector &LPRe
 
 	denseBAVector lb(BBSMPSSolver::instance()->getOriginalLB());
 	denseBAVector ub(BBSMPSSolver::instance()->getOriginalUB());
+	node->getAllBranchingInformation(lb,ub);
+
 	//Apply Simple rounding to 1st stage vars 
 	for (int col = 0; col < input.nFirstStageVars(); col++)
 	{	
@@ -28,8 +30,8 @@ bool BBSMPSHeuristicRounding::runHeuristic(BBSMPSNode* node, denseBAVector &LPRe
 	rootSolver.setLB(lb);
 	rootSolver.setUB(ub);
 
-	BAFlagVector<variableState> ps;
-	node->getWarmStartState(ps);
+	BAFlagVector<variableState> ps(BBSMPSSolver::instance()->getOriginalWarmStart());
+	node->reconstructWarmStartState(ps);
 	rootSolver.setStates(ps);
 	rootSolver.commitStates();
 
@@ -138,6 +140,6 @@ bool BBSMPSHeuristicRounding::shouldItRun(BBSMPSNode* node, denseBAVector &LPRel
 	nIntVars+=totalIntVars2;
 	numberOfFractionalVariables=+totalCount2;
 	if (nIntVars==0)return false;
-	return ((numberOfFractionalVariables*100/nIntVars)<25 );
+	return ((numberOfFractionalVariables*100/nIntVars)<10 );
 
 }

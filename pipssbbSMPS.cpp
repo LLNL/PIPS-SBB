@@ -3,6 +3,7 @@
 #include "PIPSSInterface.hpp"
 #include "BBSMPSTree.hpp"
 #include "BBSMPSNode.hpp"
+#include "BBSMPSSolver.hpp"
 #include <boost/scoped_ptr.hpp>
 #include <cstdlib>
 
@@ -57,14 +58,17 @@ int main(int argc, char **argv) {
 
   bb.loadSimpleHeuristics();
   bb.loadMIPHeuristics();
-  bb.setTimeLimit(3600*15);
-  //bb.setNodeLimit(5000);
+  bb.setTimeLimit(3600*6);
+  //bb.setNodeLimit(50000);
   if (0 == mype) BBSMPS_ALG_LOG_SEV(info) <<"Calling branch-and-bound.";
   bb.branchAndBound();
 
 
   if (0 == mype) BBSMPS_APP_LOG_SEV(info) <<"Application successfully terminated.";
+
+  BBSMPSSolver::deInitialize();
   // Clean up MPI data structures
+
   MPI_Finalize();
 
   return 0;

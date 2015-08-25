@@ -128,15 +128,18 @@ verbosityActivated(true)
     // because these are used in a reformulation of the problem to standard
     // form: Ax + s = b, s >= 0.
     BAFlagVector<variableState> states(dimsSlacks, ctx, PrimalVector);
+    
     rootSolver.getStates(states);
-
+    BBSMPSSolver::instance()->setOriginalWarmStart(states);
     // Update global lower bound; really need to check feasibility, etc.
     // here, but I'm going to move this code to the B&B tree.
     double lpObj = rootSolver.getObjective();
     LPRelaxationValue=lpObj;
     if ((lpObj - compTol) >= objLB) objLB = lpObj;
 
-    BBSMPSNode *rootNode= new BBSMPSNode(lpObj,states);
+    std::vector< std::pair < BAIndex, variableState > > emptyStates;
+
+    BBSMPSNode *rootNode= new BBSMPSNode(lpObj,emptyStates);
 
     //if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(summary) << "Pushing root node onto B&B tree.";
     heap.push(rootNode);
@@ -218,6 +221,54 @@ BBSMPSTree::~BBSMPSTree(){
 	heuristicsManager.freeResources();
 }
 
+
+
+void BBSMPSTree::generateIncrementalWarmState(BBSMPSNode* node, const BAFlagVector<variableState> & originalState, const BAFlagVector<variableState> &currentState){
+
+	SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
+	BAContext &ctx=BBSMPSSolver::instance()->getBAContext();
+	BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
+	
+
+	std::vector< std::pair < BAIndex, variableState > > changes;
+	
+
+	const denseFlagVector<variableState> &stageVec = currentState.getFirstStageVec();
+	const denseFlagVector<variableState> &stageVec2 = originalState.getFirstStageVec();
+	for (int j = 0; j < stageVec.length(); j++) {
+		if (stageVec[j]!=stageVec2[j]){
+			BAIndex aux;
+			aux.scen=-1;
+			aux.idx=j;
+			changes.push_back(std::pair < BAIndex, variableState > (aux,stageVec[j]));
+
+		}
+	}
+
+
+	for (int scen = 0; scen < input.nScenarios(); scen++) {
+		if(ctx.assignedScenario(scen)) {
+			const denseFlagVector<variableState> &stageVec = currentState.getSecondStageVec(scen);
+			const denseFlagVector<variableState> &stageVec2 = originalState.getSecondStageVec(scen);
+			for (int j = 0; j < stageVec.length(); j++) {
+				if (stageVec[j]!=stageVec2[j]){
+					BAIndex aux;
+					aux.scen=scen;
+					aux.idx=j;
+					changes.push_back(std::pair < BAIndex, variableState > (aux,stageVec[j]));
+
+				}
+			}
+		}
+	}
+
+	
+
+	node->setIncrementalWarmStartState(changes);
+
+
+
+}
 
 int BBSMPSTree::getFirstStageMinIntInfeasCol(const denseBAVector& primalSoln) {
 	
@@ -334,7 +385,8 @@ bool BBSMPSTree::isLPIntFeas(const denseBAVector& primalSoln) {
 
 void BBSMPSTree::branchAndBound() {
 
-	
+SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
+	BAContext &ctx=BBSMPSSolver::instance()->getBAContext();
 
 	int mype=BBSMPSSolver::instance()->getMype();
 	PIPSSInterface &rootSolver= BBSMPSSolver::instance()->getPIPSInterface();
@@ -366,6 +418,7 @@ void BBSMPSTree::branchAndBound() {
 		the solution must be optimal. */
 			if (status.isPrimalFeasible()) {
 				status.setStatusToOptimal();
+				objLB=objUB;
 				if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Optimal solution found.";
 			}
 
@@ -390,12 +443,14 @@ void BBSMPSTree::branchAndBound() {
 		if (nodesel == BestBound) {
 			objLB=currentNode_ptr->getParentObjective();
 			if ((objLB - compTol) >= objUB) {
+				objLB=objUB;
 				if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "Can stop if best bound node selection rule";
 				status.setStatusToOptimal();
 				if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info) << "All nodes can be fathomed! Terminating.";
+				currentNode_ptr->eliminate();
 				break; 
 			}
-				
+			
 		}
 
 		/* Set bounds of LP decision variables from BBSMPSNode */
@@ -413,10 +468,13 @@ void BBSMPSTree::branchAndBound() {
 
 		/* Set information on basic/nonbasic variables for warm starting */
 		//if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(summary) << "Setting warm start information.";
-		BAFlagVector<variableState> ps;
-		currentNode_ptr->getWarmStartState(ps);
+		BAFlagVector<variableState> ps(BBSMPSSolver::instance()->getOriginalWarmStart());
+		currentNode_ptr->reconstructWarmStartState(ps);
+
 
 		rootSolver.setStates(ps);
+
+
 		rootSolver.commitStates();
 		/* Solve LP defined by current node*/
 		//if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(summary) << "Solving LP subproblem.";
@@ -521,6 +579,7 @@ void BBSMPSTree::branchAndBound() {
 			
 		}
 
+
 		/* Get primal solution */
 		//if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(summary) << "Getting primal solution...";
 		denseBAVector primalSoln(rootSolver.getPrimalSolution());
@@ -561,10 +620,11 @@ void BBSMPSTree::branchAndBound() {
 		if (heuristicSolutions.size()>0) {
 			if (0 == mype && verbosityActivated) BBSMPS_ALG_LOG_SEV(info)<<"Heuristic found solution.";
 			for (int i=0; i< heuristicSolutions.size(); i++){
+
 				denseBAVector solVector;
 				heuristicSolutions[i].getSolutionVector(solVector);
-				if (heuristicSolutions[i].getObjValue()<objUB && isLPIntFeas(solVector)){
-					objUB=heuristicSolutions[i].getObjValue();
+				if (isLPIntFeas(solVector)){
+					if (heuristicSolutions[i].getObjValue()<objUB) objUB=heuristicSolutions[i].getObjValue();
 					heuristicSolutions[i].setTimeOfDiscovery(MPI_Wtime()-timeStart);
 					solutionPool.insert(heuristicSolutions[i]);
 					status.setStatusToPrimalFeasible();
@@ -595,9 +655,7 @@ void BBSMPSTree::branchAndBound() {
 		BAContext &ctx=BBSMPSSolver::instance()->getBAContext();
 		BAFlagVector<variableState> states(dimsSlacks, ctx, PrimalVector);
 		rootSolver.getStates(states);
-
-			//currentNode_ptr->setWarmStartState(states);
-
+        
 
 		vector<BBSMPSNode*> children;
 
@@ -605,17 +663,21 @@ void BBSMPSTree::branchAndBound() {
 
 		if (children.size()>0){
 			for (int i=0; i<children.size();i++){
-				children[i]->setWarmStartState(states);
+				generateIncrementalWarmState(children[i], ps, states);
+			
+
 				heap.push(children[i]);
 			}
 
 		}
+
+
 		bbIterationCounter++;
 		if (0 == mype && verbosityActivated && bbIterationCounter%100==0) {
 			double gap = fabs(objUB-objLB)*100/(fabs(objLB)+10e-10);
   		
 			BBSMPS_ALG_LOG_SEV(warning)<<"\n----------------------------------------------------\n"<<
-			"Iteration "<<bbIterationCounter<<":LB:"<<objLB<<":UB:"<<objUB<<":GAP:"<<gap<<":Tree Size:"<<heap.size()<<"\n"<<
+			"Iteration "<<bbIterationCounter<<":LB:"<<objLB<<":UB:"<<objUB<<":GAP:"<<gap<<":Tree Size:"<<heap.size()<<":Time:"<<MPI_Wtime()-timeStart<<"\n"<<
 			"----------------------------------------------------";
 		}
 	}
@@ -628,7 +690,7 @@ void BBSMPSTree::branchAndBound() {
 		BBSMPS_ALG_LOG_SEV(warning)<<"\n--------------EXPLORATION TERMINATED----------------\n"<<
 		"Iteration "<<bbIterationCounter<<":LB:"<<objLB<<":UB:"<<objUB<<":GAP:"<<gap<<":Tree Size:"<<heap.size()<<"\n"<<
 		":Nodes Fathomed:"<<nodesFathomed<<":Nodes with integer Solution:"<<nodesBecameInteger<<"\n"<<
-		"LP Relaxation Value:"<<LPRelaxationValue<<":LP Relaxation Time:"<<LPRelaxationTime<<":Preprocessing Time:"<<PreProcessingTime;
+		"LP Relaxation Value:"<<LPRelaxationValue<<":LP Relaxation Time:"<<LPRelaxationTime<<":Preprocessing Time:"<<PreProcessingTime<<":Total Time:"<<MPI_Wtime()-timeStart;
 	
 		"----------------------------------------------------";
 		heuristicsManager.printStatistics();
@@ -661,11 +723,19 @@ bool BBSMPSTree::retrieveBestSolution(BBSMPSSolution &solution){
 
   void BBSMPSTree::loadSimpleHeuristics(){
   	BBSMPSHeuristicRounding *hr= new BBSMPSHeuristicRounding(1,25,"SimpleRounding");
+
     heuristicsManager.addHeuristic(hr);
+
+    
+
+    BBSMPSHeuristicFixAndDive *hr2= new BBSMPSHeuristicFixAndDive(1,75,"FixAndDive");
+
+    heuristicsManager.addHeuristic(hr2);
+
   }
 
   void BBSMPSTree::loadMIPHeuristics(){
-  	BBSMPSHeuristicRINS *hr= new BBSMPSHeuristicRINS(1,50,"RINS",50);
+  	BBSMPSHeuristicRINS *hr= new BBSMPSHeuristicRINS(1,50,"RINS",100);
 	//BBSMPSHeuristicRENS *hr2= new BBSMPSHeuristicRENS(1,50,"RENS",50);
 
     heuristicsManager.addHeuristic(hr);

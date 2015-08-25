@@ -47,31 +47,32 @@ public:
   BADimensionsSlacks& getBADimensionsSlacks();
   denseBAVector& getOriginalLB();
   denseBAVector& getOriginalUB();
+  const BAFlagVector<variableState>& getOriginalWarmStart();
+  void setOriginalWarmStart(BAFlagVector<variableState>&warmStart);
   denseBAVector& getLPRelaxation();
   void setLPRelaxation(denseBAVector &_LPRelaxation);
   static BBSMPSSolver *instance();
   static BBSMPSSolver *initialize(const SMPSInput &_input);
   static bool isInitialized();
+  static void deInitialize();
   void printPresolveStatistics();
 
 protected:
 
 private:
   BBSMPSSolver(const SMPSInput &_input);
-
   BAContext ctx; // MPI communication context for PIPS-S
   int mype; // MPI rank of process storing tree (relative to comm in ctx)
   SMPSInput input; // SMPS input file for reading in block angular MILP
    BAData problemData;
-  Presolve pre;
   PIPSSInterface rootSolver; // PIPS-S instance for root LP relaxation
-  
+    Presolve pre;
   BADimensions dims; // Dimension object for instantiating warm start information
   BADimensionsSlacks dimsSlacks; // Dimension object for warm start info
   denseBAVector lb;
   denseBAVector ub;
   denseBAVector LPRelaxation;
- 
+  BAFlagVector<variableState> originalWarmStart;
 
   static BBSMPSSolver *solverInstance;
 };
