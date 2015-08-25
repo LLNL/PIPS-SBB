@@ -33,7 +33,7 @@
 #include "BAData.hpp"
 #include "PIPSSInterface.hpp"
 #include "BBSMPSNode.hpp"
-
+#include "Presolve.hpp"
 
 class BBSMPSSolver {
 
@@ -62,12 +62,16 @@ private:
   BAContext ctx; // MPI communication context for PIPS-S
   int mype; // MPI rank of process storing tree (relative to comm in ctx)
   SMPSInput input; // SMPS input file for reading in block angular MILP
+   BAData problemData;
+  Presolve pre;
   PIPSSInterface rootSolver; // PIPS-S instance for root LP relaxation
+  
   BADimensions dims; // Dimension object for instantiating warm start information
   BADimensionsSlacks dimsSlacks; // Dimension object for warm start info
   denseBAVector lb;
   denseBAVector ub;
   denseBAVector LPRelaxation;
+ 
 
   static BBSMPSSolver *solverInstance;
 };

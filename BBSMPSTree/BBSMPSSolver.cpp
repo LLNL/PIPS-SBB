@@ -58,8 +58,10 @@ BBSMPSSolver::BBSMPSSolver(const SMPSInput &_input):
 ctx(MPI_COMM_WORLD),
 mype(ctx.mype()),
 input(_input),
-rootSolver(input, ctx, PIPSSInterface::useDual),
-dims(input, ctx),
+problemData(input,ctx),
+pre(problemData,input),
+rootSolver(problemData, PIPSSInterface::useDual),
+dims(problemData.dims.inner),
 dimsSlacks(dims){
   lb = rootSolver.getLB();
   ub = rootSolver.getUB();
