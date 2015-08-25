@@ -99,5 +99,23 @@ include_directories(${PIPS_DIR}/PIPS-S/Drivers)
 include_directories(${PIPS_DIR}/SolverInterface)
 include_directories(${PIPS_DIR}/Input)
 
+
+include_directories(BBSMPSBranching)
+include_directories(BBSMPSTree)
+include_directories(BBSMPSHeuristics)
+include_directories(BBSMPSUtils)
+add_library(pipssbb BBSMPSTree/BBSMPSTree.cpp 
+	BBSMPSTree/BBSMPSNode.cpp 
+	BBSMPSBranching/BBSMPSBranchingInfo.cpp
+	BBSMPSBranching/BBSMPSBranchingRuleManager.cpp 
+	BBSMPSBranching/BBSMPSBranchingRule.cpp 
+	BBSMPSBranching/BBSMPSMaxFracBranchingRule.cpp 
+	BBSMPSUtils/BBSMPSUtils.cpp
+	BBSMPSUtils/BBSMPSLogging.cpp
+	BBSMPSHeuristics/BBSMPSHeuristicsManager.cpp 
+	BBSMPSHeuristics/BBSMPSHeuristic.cpp 
+	BBSMPSHeuristics/BBSMPSHeuristicRounding.cpp
+	BBSMPSTree/BBSMPSSolver.cpp 
+	BBSMPSTree/BBSMPSSolverState.cpp)
 add_executable(pipssbbSMPS pipssbbSMPS.cpp)
-target_link_libraries(pipssbbSMPS pipss stochInput ${COIN_LIBS} ${MATH_LIBS} ${Boost_LIBRARIES})	
+target_link_libraries(pipssbbSMPS pipssbb pipss stochInput ${COIN_LIBS} ${MATH_LIBS} ${Boost_LIBRARIES})	
