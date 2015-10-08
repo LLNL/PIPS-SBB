@@ -1,0 +1,34 @@
+To build PIPS-SBB on Sierra:
+
+1. Clone PIPS into the PIPS subdirectory via:
+
+git clone git@git.mcs.anl.gov:PIPS.git PIPS
+
+2. Build PIPS-SBB using the following command:
+
+rm -rf build && mkdir build && cd build && \
+cmake -DCMAKE_TOOLCHAIN_FILE=../LLNL-Sierra.cmake .. && make
+
+This compound command does 5 things:
+
+a) removes any existing build directory
+
+b) creates a build directory for an out-of-source build,
+   which is standard practice for CMake
+
+c) changes the current working directory to the build
+   directory
+
+d) calls CMake with a toolchain file that includes
+   settings appropriate for Sierra; CMake outputs a makefile
+
+e) calls Make to execute the makefile, which builds PIPS-SBB
+   All executables will be in this "build" subdirectory,
+   which at this point in the instructions, should be the
+   current working directory.
+
+3. If you are developing PIPS-SBB, sometimes, you may have
+   to regenerate the Makefile in response to source code changes.
+   Change your directory to the root directory of the PIPS-SBB
+   repository, then repeat step 2 to regenerate this Makefile and
+   rebuild PIPS-SBB.
