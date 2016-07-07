@@ -4,7 +4,7 @@
 
    Description: Mixed Integer Rounding cutting plane
 
-*/ 
+*/
 // ----------------------------------------------------------------------------
 
 
@@ -14,9 +14,9 @@
 #include "BBSMPSCuttingPlaneGenerator.hpp"
 #include "BBSMPSUtils.hpp"
 
-   
+
 class BBSMPSCuttingPlaneGeneratorMIR: public BBSMPSCuttingPlaneGenerator {
-	
+
 public:
 	BBSMPSCuttingPlaneGeneratorMIR( const char *_name): BBSMPSCuttingPlaneGenerator(_name){};
 	bool generateCuttingPlane(BBSMPSNode* node, denseBAVector &LPRelaxationSolution);

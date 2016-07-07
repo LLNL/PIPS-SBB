@@ -7,7 +7,7 @@
    Limitations: An object of this class should not be instantiated, it should always
    be subclassed. A rule must be initialized with a priority.
 
-*/ 
+*/
 // ----------------------------------------------------------------------------
 
 #ifndef BBSMPSBRANCHINGRULE_H

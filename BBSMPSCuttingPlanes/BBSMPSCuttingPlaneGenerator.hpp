@@ -8,7 +8,7 @@
    be subclassed. It features a virtual function called "shouldItRun", which is intended
    to be a more complex boolean function to determine if the cut should be generated.
 
-*/ 
+*/
 // ----------------------------------------------------------------------------
 
 #ifndef BBSMPSCUTTINGPLANEGENERATOR_H
@@ -33,9 +33,8 @@ public:
 private:
 		std::string name;
 protected:
-		int timesCalled;
-		int timesSuccessful;
-	
+	int cuttingPlanesGenerated;
+
 
 };
 

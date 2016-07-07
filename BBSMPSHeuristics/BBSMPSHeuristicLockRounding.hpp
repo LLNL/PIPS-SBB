@@ -3,9 +3,9 @@
    File: BBSMPSHeuristicLockRounding.hpp
 
    Description: Heuristic lock rounding implemented as described by Timo Berthold.
-   
 
-*/ 
+
+*/
 // ----------------------------------------------------------------------------
 
 
@@ -20,10 +20,10 @@
 #include <utility>
 #include "CoinShallowPackedVector.hpp"
 class BBSMPSHeuristicLockRounding: public BBSMPSHeuristic {
-	
+
 public:
 	BBSMPSHeuristicLockRounding(int offset, int depth,  const char *_name): BBSMPSHeuristic(offset,depth,_name){};
-	bool runHeuristic(BBSMPSNode* node, denseBAVector &LPRelaxationSolution, BBSMPSSolution &solution,double objUB);
+	bool runHeuristic(BBSMPSNode* node, denseBAVector &LPRelaxationSolution);
 	bool shouldItRun(BBSMPSNode* node, denseBAVector &LPRelaxationSolution);
 
 private:

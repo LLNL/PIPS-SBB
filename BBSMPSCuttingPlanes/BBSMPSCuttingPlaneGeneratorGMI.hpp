@@ -4,7 +4,7 @@
 
    Description: Gomory mixed integer cutting plane generator
 
-*/ 
+*/
 // ----------------------------------------------------------------------------
 
 
@@ -18,7 +18,7 @@
 #include "BBSMPSLogging.hpp"
 
 class BBSMPSCuttingPlaneGeneratorGMI: public BBSMPSCuttingPlaneGenerator {
-	
+
 public:
 	BBSMPSCuttingPlaneGeneratorGMI(const char *_name): BBSMPSCuttingPlaneGenerator(_name){};
 	bool generateCuttingPlane(BBSMPSNode* node, denseBAVector &LPRelaxationSolution);

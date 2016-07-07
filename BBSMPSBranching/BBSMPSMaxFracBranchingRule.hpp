@@ -2,10 +2,10 @@
 /**
    File: BBSMPSMaxFracBranchingRule.hpp
 
-   Description: Branching rule that branches on the maximum fractional variable first. 
+   Description: Branching rule that branches on the maximum fractional variable first.
 
 
-*/ 
+*/
 // ----------------------------------------------------------------------------
 
 #ifndef BBSMPSMAXFRACBRANCHINGRULE_H
@@ -21,7 +21,7 @@ class BBSMPSMaxFracBranchingRule: public BBSMPSBranchingRule {
 public:
 
    	virtual bool branch(BBSMPSNode * node, std::vector<BBSMPSNode*> &childNodes, const denseBAVector& primalSoln);
-   	
+
    	BBSMPSMaxFracBranchingRule(int priority): BBSMPSBranchingRule(priority){name="Max Fractional Branching Rule";};
 
 

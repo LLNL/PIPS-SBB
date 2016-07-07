@@ -15,7 +15,7 @@ bool BBSMPSBranchingRuleManager::branch(BBSMPSNode * node, std::vector<BBSMPSNod
 	for (it=branchingRuleList.begin(); it!=branchingRuleList.end() && !success; ++it){
 		BBSMPSBranchingRule *br=(*it);
 		success= success || br->branch(node, childNodes,  primalSoln);
-		
+
 	}
 	return success;
 }

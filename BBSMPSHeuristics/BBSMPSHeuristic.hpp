@@ -9,7 +9,7 @@
    Additionally, it features a virtual function called "shouldItRun", which is intended
    to be a more complex boolean function to determine if the heuristic should run.
 
-*/ 
+*/
 // ----------------------------------------------------------------------------
 
 #ifndef BBSMPSHEURISTIC_H
@@ -22,24 +22,26 @@
 #include "BBSMPSLogging.hpp"
 #include "BBSMPSSolution.hpp"
 
+
 class BBSMPSHeuristic {
 public:
 	BBSMPSHeuristic(int offset, int depth,  const char *_name);
 	~BBSMPSHeuristic();
 	virtual bool shouldItRun(BBSMPSNode* node, denseBAVector &LPRelaxationSolution){return true;};
 	bool checkPeriodicity(BBSMPSNode* node);
-	virtual bool runHeuristic(BBSMPSNode* node, denseBAVector &LPRelaxationSolution, BBSMPSSolution &solution, double objUB){std::cout<<"Well, this is an error...\n";};
+	virtual bool runHeuristic(BBSMPSNode* node, denseBAVector &LPRelaxationSolution){std::cout<<"Well, this is an error...\n";};
 	double getCumulativeTime(){return cumulativeTime;};
 	virtual void printStatistics();
 private:
-		int offset;
-		int depth;
+
 		std::string name;
 
 protected:
 		int timesCalled;
 		int timesSuccessful;
 		double cumulativeTime;
+		int offset;
+		int depth;
 
 };
 

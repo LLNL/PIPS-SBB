@@ -78,14 +78,14 @@ void BBSMPSMaxFracBranchingRule::branchOnFirstStage(BBSMPSNode * node, std::vect
 }
 
 int BBSMPSMaxFracBranchingRule::getSecondStageMinIntInfeasCol( const denseBAVector& primalSoln, int scen,   SMPSInput& input) {
-	
+
 	int col;
 	for (col = 0; col < input.nSecondStageVars(scen); col++)
 	{
 		bool isColInteger = input.isSecondStageColInteger(scen, col);
 		bool isValInteger = isIntFeas(primalSoln.getSecondStageVec(scen)[col], intTol);
 
-		// If the (col)th 2nd stage primal variable of the (scen)th	
+		// If the (col)th 2nd stage primal variable of the (scen)th
 		// scenario is integer, but has fractional value, return idx
 		if (isColInteger && !isValInteger) return col;
 	}
@@ -112,8 +112,7 @@ void BBSMPSMaxFracBranchingRule::branchOnSecondStage(BBSMPSNode * node, std::vec
     // index of an integer infeasible variable.
 
 	int myRankBranchScen(input.nScenarios() + 1);
-    //if (0 == mype) cout << "myRankBranchScen = " << myRankBranchScen << endl;
-	for (int scen = 0; scen < input.nScenarios(); scen++)
+    for (int scen = 0; scen < input.nScenarios(); scen++)
 	{
 		if(ctx.assignedScenario(scen)) {
 			if(!isSecondStageIntFeas(primalSoln, scen,input)) {
@@ -127,7 +126,7 @@ void BBSMPSMaxFracBranchingRule::branchOnSecondStage(BBSMPSNode * node, std::vec
 	int errorFlag = MPI_Allreduce(&myRankBranchScen,
 		&branchScen,
 		1,
-		MPI_INT, 
+		MPI_INT,
 		MPI_MIN,
 		ctx.comm());
 	if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Branching on second stage scenario "

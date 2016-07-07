@@ -124,6 +124,7 @@ set(CMAKE_BUILD_TYPE RELWITHDEBINFO)
 #set(CMAKE_BUILD_TYPE RELEASE)
 #message("FLAGS: ${CMAKE_CXX_FLAGS_RELEASE}")
 
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 #IF(CMAKE_COMPILER_IS_GNUCXX)
 #       SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
 #ENDIF(CMAKE_COMPILER_IS_GNUCXX)
@@ -149,6 +150,7 @@ add_library(pipssbb
 	BBSMPSCuttingPlanes/BBSMPSCuttingPlaneGenerator.cpp
 	BBSMPSCuttingPlanes/BBSMPSCuttingPlaneGeneratorMIR.cpp
 	BBSMPSCuttingPlanes/BBSMPSCuttingPlaneGeneratorGMI.cpp
+	BBSMPSCuttingPlanes/BBSMPSCuttingPlaneGenerator01KP.cpp
 	BBSMPSCuttingPlanes/BBSMPSCuttingPlane.cpp
 	BBSMPSTree/BBSMPSTree.cpp
 	BBSMPSTree/BBSMPSNode.cpp

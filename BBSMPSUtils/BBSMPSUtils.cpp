@@ -21,7 +21,7 @@ double floorFracPart(double x) {
 }
 
 int getFirstStageMinIntInfeasCol(const denseBAVector& primalSoln) {
-	
+
 	SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
 	int col;
 
@@ -107,3 +107,20 @@ bool isLPIntFeas(const denseBAVector& primalSoln) {
 
 	return (is1stStageIntFeas && is2ndStageIntFeas);
 }
+
+// TODO: isZero, isOne, and isBinary are utility methods that should be
+  // migrated to a utilities class/namespace. (These functions were given
+  // 2 args for flexibility and ease of refactoring.)
+  bool isZero(double x, double tol) {
+    return (fabs(x) <= tol);
+  }
+
+  bool isOne(double x, double tol) {
+    return isZero(1 - x, tol);
+  }
+
+  bool isBinary(double colLB, double colUB, double tol) {
+    return (isZero(colLB, tol) && isOne(colUB, tol));
+  }
+
+

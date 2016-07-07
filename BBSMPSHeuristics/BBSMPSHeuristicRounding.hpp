@@ -4,7 +4,7 @@
 
    Description: Simple nearest integer rounding heuristic
 
-*/ 
+*/
 // ----------------------------------------------------------------------------
 
 
@@ -15,10 +15,10 @@
 #include "BBSMPSUtils.hpp"
 #include "BBSMPSSolver.hpp"
 class BBSMPSHeuristicRounding: public BBSMPSHeuristic {
-	
+
 public:
 	BBSMPSHeuristicRounding(int offset, int depth,  const char *_name): BBSMPSHeuristic(offset,depth,_name){};
-	bool runHeuristic(BBSMPSNode* node, denseBAVector &LPRelaxationSolution, BBSMPSSolution &solution,double objUB);
+	bool runHeuristic(BBSMPSNode* node, denseBAVector &LPRelaxationSolution);
 	bool shouldItRun(BBSMPSNode* node, denseBAVector &LPRelaxationSolution);
 };
 

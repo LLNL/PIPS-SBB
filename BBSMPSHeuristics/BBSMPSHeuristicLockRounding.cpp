@@ -4,59 +4,50 @@ using namespace std;
 
 
 double objContribution2(double valueToRound, double objCoefficient, int roundingDirection){
-	
+
 	double obj=fabs(objCoefficient);
 	if (roundingDirection==0){//We are rounding down
-
 		double differential= floor(valueToRound) - valueToRound;
-		// cout<<"Obj contribution "<<valueToRound<< " O: "<<objCoefficient<<" RDir "<<roundingDirection<<" RESULT "<<objCoefficient*differential<<endl;
-		
 		return obj*differential;
 	}
-		
-		double differential= ceil(valueToRound) - valueToRound;
-	//	cout<<"Obj contribution "<<valueToRound<< " O: "<<objCoefficient<<" RDir "<<roundingDirection<<" RESULT "<<objCoefficient*differential<<endl;
-		
-		return obj*differential;
-	
+
+	double differential= ceil(valueToRound) - valueToRound;
+	return obj*differential;
 
 }
 
 void generateLocks2(denseBAVector & upLocks, denseBAVector &downLocks){
 
-	
-	
 	SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
-	
-	const BADimensionsSlacks &originalDimensions= BBSMPSSolver::instance()->getBADimensionsSlacks();
+
+	const BADimensionsSlacks &originalDimensions= BBSMPSSolver::instance()->getOriginalBADimensionsSlacks();
 	const BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
     BAContext &ctx=BBSMPSSolver::instance()->getBAContext();
     PIPSSInterface &rootSolver= BBSMPSSolver::instance()->getPIPSInterface();
-   
+
    	int firstStageVars=input.nFirstStageVars();
     int firstStageRows=input.nFirstStageCons();
    	const BAFlagVector<constraintType> varTypes = rootSolver.getVariableTypes();
-   	//cout<<"gl1"<<endl;
 	for (int scen = 0; scen < input.nScenarios(); scen++)
 	{
 		if(ctx.assignedScenario(scen)) {
 			for (int c = 0; c < input.nSecondStageCons(scen); c++)
 			{
+				int currentNCons=dimsSlacks.numSecondStageCons(c);
+				int currentNVars=dimsSlacks.numSecondStageVars(c)-dimsSlacks.numSecondStageCons(c);
 
 				const CoinShallowPackedVector row=rootSolver.retrieveTRow(c,scen);
 				int nElems=row.getNumElements();
 				const int*indices=row.getIndices();
-				const double *elems=row.getElements(); 
-
+				const double *elems=row.getElements();
 
 		    	const CoinShallowPackedVector row2=rootSolver.retrieveWRow(c,scen);
 		    	int nElems2=row2.getNumElements();
 				const int* indices2=row2.getIndices();
-				const double *elems2=row2.getElements(); 
+				const double *elems2=row2.getElements();
 
-				if (varTypes.getSecondStageVec(scen)[input.nSecondStageVars(scen)+c]==LB){
+				if (varTypes.getSecondStageVec(scen)[currentNVars+c]==LB){
 					for (int el=0; el<nElems; el++){
-			    		
 			    		if (elems[el]<0)upLocks.getFirstStageVec()[indices[el]]++;
 			    		else downLocks.getFirstStageVec()[indices[el]]++;
 
@@ -68,9 +59,8 @@ void generateLocks2(denseBAVector & upLocks, denseBAVector &downLocks){
 
 			    	}
 			    }
-			    else if (varTypes.getSecondStageVec(scen)[input.nSecondStageVars(scen)+c]==UB){
+			    else if (varTypes.getSecondStageVec(scen)[currentNVars+c]==UB){
 			    	for (int el=0; el<nElems; el++){
-			    		
 			    		if (elems[el]>0)upLocks.getFirstStageVec()[indices[el]]++;
 			    		else downLocks.getFirstStageVec()[indices[el]]++;
 
@@ -82,9 +72,8 @@ void generateLocks2(denseBAVector & upLocks, denseBAVector &downLocks){
 
 			    	}
 			    }
-			    else if(varTypes.getSecondStageVec(scen)[input.nSecondStageVars(scen)+c]==Fixed){
+			    else if(varTypes.getSecondStageVec(scen)[currentNVars+c]==Fixed){
 			    	for (int el=0; el<nElems; el++){
-			    		
 			    		upLocks.getFirstStageVec()[indices[el]]++;
 			    	    downLocks.getFirstStageVec()[indices[el]]++;
 
@@ -102,36 +91,36 @@ void generateLocks2(denseBAVector & upLocks, denseBAVector &downLocks){
 
 		}
     }
-    //cout<<"gl2"<<endl;
 
     //At this point each vector has its own count of first stage locks. Let's reduce
     double *upLock1stStagePtr = upLocks.getFirstStageVec().getPointer();
     double *downLock1stStagePtr = downLocks.getFirstStageVec().getPointer();
     MPI_Allreduce(MPI_IN_PLACE,upLock1stStagePtr,upLocks.getFirstStageVec().length(),MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
     MPI_Allreduce(MPI_IN_PLACE,downLock1stStagePtr,downLocks.getFirstStageVec().length(),MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-    
-    //cout<<"gl3"<<endl;
+    int currentNCons=dimsSlacks.numFirstStageCons();
+	int currentNVars=dimsSlacks.numFirstStageVars()-dimsSlacks.numFirstStageCons();
     for (int c=0; c< firstStageRows ; c++){
 
     	const CoinShallowPackedVector row=rootSolver.retrieveARow(c);
     	int nElems=row.getNumElements();
 		const int*indices=row.getIndices();
-		const double *elems=row.getElements(); 
+		const double *elems=row.getElements();
 
-		if (varTypes.getFirstStageVec()[input.nFirstStageVars()+c]==LB){
+
+		if (varTypes.getFirstStageVec()[currentNVars+c]==LB){
 			for (int el=0; el<nElems; el++){
 	    		if (elems[el]<0)upLocks.getFirstStageVec()[indices[el]]++;
 	    		else downLocks.getFirstStageVec()[indices[el]]++;
 
 	    	}
 	    }
-	    else if (varTypes.getFirstStageVec()[input.nFirstStageVars()+c]==UB){
+	    else if (varTypes.getFirstStageVec()[currentNVars+c]==UB){
 	    	for (int el=0; el<nElems; el++){
     			if (elems[el]>0)upLocks.getFirstStageVec()[indices[el]]++;
     			else downLocks.getFirstStageVec()[indices[el]]++;
     		}
 	    }
-	    else if(varTypes.getFirstStageVec()[input.nFirstStageVars()+c]==Fixed){
+	    else if(varTypes.getFirstStageVec()[currentNVars+c]==Fixed){
 	    	for (int el=0; el<nElems; el++){
 				upLocks.getFirstStageVec()[indices[el]]++;
 	    	    downLocks.getFirstStageVec()[indices[el]]++;
@@ -140,37 +129,36 @@ void generateLocks2(denseBAVector & upLocks, denseBAVector &downLocks){
     	}
 
     }
-    //cout<<"gl4"<<endl;
+
 }
 int findAndFixFirstStageConstraint(denseBAVector &roundedSolution,denseBAVector & upLocks, denseBAVector &downLocks,denseBAVector &lb,denseBAVector &ub){
 
 	SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
 	int mype=BBSMPSSolver::instance()->getMype();
-	
-	const BADimensionsSlacks &originalDimensions= BBSMPSSolver::instance()->getBADimensionsSlacks();
+
+	const BADimensionsSlacks &originalDimensions= BBSMPSSolver::instance()->getOriginalBADimensionsSlacks();
 	const BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
     BAContext &ctx=BBSMPSSolver::instance()->getBAContext();
     PIPSSInterface &rootSolver= BBSMPSSolver::instance()->getPIPSInterface();
    	const denseBAVector varObjectives = rootSolver.getVarObjective();
-    
+
     int firstStageVars=input.nFirstStageVars();
     int firstStageRows=input.nFirstStageCons();
 
-    //cout<<"ff1"<<endl;
+
 	//First check first stage
 	bool allRowsFeasible=true;
-	
+
 
 	for (int c=0; c< firstStageRows &&allRowsFeasible; c++){
 		int brokenDirection=rootSolver.isRowFeasible(c, -1, roundedSolution);
-		//cout<<"Trying to fix constraint "<<c<<" which is broken on the side "<<brokenDirection<<endl;
-    		
+
 		if (brokenDirection!=1){
 			allRowsFeasible=false;
 			const CoinShallowPackedVector row=rootSolver.retrieveARow(c);
 	    	int nElems=row.getNumElements();
 			const int*indices=row.getIndices();
-			const double *elems=row.getElements(); 
+			const double *elems=row.getElements();
 			double bestLock=COIN_DBL_MAX;
 			int varIndexOfBestLock=-1;
 			double objCont=COIN_DBL_MAX;//We are trying to minimize
@@ -194,23 +182,22 @@ int findAndFixFirstStageConstraint(denseBAVector &roundedSolution,denseBAVector 
 	    				}
 	    			}
 	    		}
-	    		
+
 
 	    	}
 	    	if (varIndexOfBestLock != -1 && directionToRound==0){//Round down variable
-	    		//cout<<"rounded var "<<varIndexOfBestLock<<" to be "<<floor(roundedSolution.getFirstStageVec()[varIndexOfBestLock])<<endl;
 	    		roundedSolution.getFirstStageVec()[varIndexOfBestLock]=floor(roundedSolution.getFirstStageVec()[varIndexOfBestLock]);
 	    		lb.getFirstStageVec()[varIndexOfBestLock]=floor(roundedSolution.getFirstStageVec()[varIndexOfBestLock]);
-	    		
+
 	    		ub.getFirstStageVec()[varIndexOfBestLock]=floor(roundedSolution.getFirstStageVec()[varIndexOfBestLock]);
-	    		
+	    		cout<<"Rounding variable of first vec "<<varIndexOfBestLock<<" to value "<<roundedSolution.getFirstStageVec()[varIndexOfBestLock]<<endl;
 	    		return 2;
 	    	}
 	    	else if (varIndexOfBestLock != -1 && directionToRound==1){//Round up variable
-	    		//cout<<"rounded var "<<varIndexOfBestLock<<" to be "<<ceil(roundedSolution.getFirstStageVec()[varIndexOfBestLock])<<endl;
 	    		roundedSolution.getFirstStageVec()[varIndexOfBestLock]=ceil(roundedSolution.getFirstStageVec()[varIndexOfBestLock]);
 	    		lb.getFirstStageVec()[varIndexOfBestLock]=ceil(roundedSolution.getFirstStageVec()[varIndexOfBestLock]);
 	    		ub.getFirstStageVec()[varIndexOfBestLock]=ceil(roundedSolution.getFirstStageVec()[varIndexOfBestLock]);
+	    		cout<<"Rounding variable of first vec "<<varIndexOfBestLock<<" to value "<<roundedSolution.getFirstStageVec()[varIndexOfBestLock]<<endl;
 	    		return 2;
 	    	}
 
@@ -232,17 +219,16 @@ int findAndFixFirstStageConstraint(denseBAVector &roundedSolution,denseBAVector 
 			for (int c = 0; c < input.nSecondStageCons(scen) && allRowsFeasible; c++)
 			{
 				int brokenDirection=rootSolver.isRowFeasible(c, scen, roundedSolution);
-				////cout<<"Trying to fix constraint "<<c<<" s"<<scen<<" which is broken on the side "<<brokenDirection<<endl;
-		    		
+
 				if (brokenDirection!=1){
 					allRowsFeasible=false;
-					
-					const CoinShallowPackedVector row=rootSolver.retrieveTRow(c,scen);					
-			
+
+					const CoinShallowPackedVector row=rootSolver.retrieveTRow(c,scen);
+
 			    	int nElems=row.getNumElements();
 					const int*indices=row.getIndices();
-					const double *elems=row.getElements(); 
-				
+					const double *elems=row.getElements();
+
 					for (int el=0; el<nElems; el++){
 			    		if (input.isFirstStageColInteger(indices[el]) && !isIntFeas(roundedSolution.getFirstStageVec()[indices[el]],intTol)){ //We have a possible rounding candidate
 			    			if ((elems[el]>0 && brokenDirection==-1) || (elems[el]<0 && brokenDirection==-2) ){ ///If we have the constraint broken in the ub and the cofficient is positive, OR we have the constraint broken in the lb and the coefficient is negative we must round down
@@ -262,7 +248,7 @@ int findAndFixFirstStageConstraint(denseBAVector &roundedSolution,denseBAVector 
 			    				}
 			    			}
 			    		}
-			    		
+
 
 			    	}
 			    }
@@ -273,21 +259,19 @@ int findAndFixFirstStageConstraint(denseBAVector &roundedSolution,denseBAVector 
 	int best[2];
 	my[0]=bestLock;
 	my[1]=mype;
-	
+
 	MPI_Allreduce(&my,&best,1,MPI_2INT,MPI_MAXLOC,ctx.comm());
 
 	if (best[1]==mype && best[0]!=COIN_DBL_MAX){
 		if (varIndexOfBestLock != -1 && directionToRound==0){//Round down variable
-			////cout<<"rounded var "<<varIndexOfBestLock<<" to be "<<floor(roundedSolution.getFirstStageVec()[varIndexOfBestLock])<<endl;
 			roundedSolution.getFirstStageVec()[varIndexOfBestLock]=floor(roundedSolution.getFirstStageVec()[varIndexOfBestLock]);
 			lb.getFirstStageVec()[varIndexOfBestLock]=floor(roundedSolution.getFirstStageVec()[varIndexOfBestLock]);
-			
+
 			ub.getFirstStageVec()[varIndexOfBestLock]=floor(roundedSolution.getFirstStageVec()[varIndexOfBestLock]);
-			
+
 			return 2;
 		}
 		else if (varIndexOfBestLock != -1 && directionToRound==1){//Round up variable
-			////cout<<"rounded var "<<varIndexOfBestLock<<" to be "<<ceil(roundedSolution.getFirstStageVec()[varIndexOfBestLock])<<endl;
 			roundedSolution.getFirstStageVec()[varIndexOfBestLock]=ceil(roundedSolution.getFirstStageVec()[varIndexOfBestLock]);
 			lb.getFirstStageVec()[varIndexOfBestLock]=ceil(roundedSolution.getFirstStageVec()[varIndexOfBestLock]);
 			ub.getFirstStageVec()[varIndexOfBestLock]=ceil(roundedSolution.getFirstStageVec()[varIndexOfBestLock]);
@@ -296,8 +280,8 @@ int findAndFixFirstStageConstraint(denseBAVector &roundedSolution,denseBAVector 
 
 	}
 	else if (best[0]!=COIN_DBL_MAX) return 2;
-	
-	
+
+
 */
 
 	return allRowsFeasible;
@@ -309,10 +293,9 @@ int findFreshFirstStageVar(denseBAVector &roundedSolution,denseBAVector & upLock
 	int bestLockScen=-1;
 	double maxLock=COIN_DBL_MIN;
 	double objCont=COIN_DBL_MAX;//We are trying to minimize
-		PIPSSInterface &rootSolver= BBSMPSSolver::instance()->getPIPSInterface();
-   		
+	PIPSSInterface &rootSolver= BBSMPSSolver::instance()->getPIPSInterface();
+
 	const denseBAVector varObjectives = rootSolver.getVarObjective();
-    //cout<<"FF1"<<endl;
 	int roundDirection;
 	for (int v=0; v<input.nFirstStageVars(); v++){
 		if(input.isFirstStageColInteger(v) && !isIntFeas(roundedSolution.getFirstStageVec()[v],intTol)){
@@ -322,48 +305,47 @@ int findFreshFirstStageVar(denseBAVector &roundedSolution,denseBAVector & upLock
 				bestLockIndex=v;
 				roundDirection=0;
 				objCont=objContribution2(roundedSolution.getFirstStageVec()[v],varObjectives.getFirstStageVec()[v],0);
-	    				
+
 			}
 			if(maxLock<downLocks.getFirstStageVec()[v]|| (maxLock==downLocks.getFirstStageVec()[v] && objCont> objContribution2(roundedSolution.getFirstStageVec()[v],varObjectives.getFirstStageVec()[v],1) )){
 				maxLock=downLocks.getFirstStageVec()[v];
 				bestLockIndex=v;
 				roundDirection=1;
 				objCont=objContribution2(roundedSolution.getFirstStageVec()[v],varObjectives.getFirstStageVec()[v],1);
-	    		
+
 			}
 		}
 	}
 
 	if (bestLockIndex!=-1){
 		if (roundDirection==1) {
-			//cout<<"rounded var "<<bestLockIndex<<" "<<maxLock<<" to be "<<ceil(roundedSolution.getFirstStageVec()[bestLockIndex])<<endl;	
 			roundedSolution.getFirstStageVec()[bestLockIndex]=ceil(roundedSolution.getFirstStageVec()[bestLockIndex]);
 			lb.getFirstStageVec()[bestLockIndex]=ceil(roundedSolution.getFirstStageVec()[bestLockIndex]);
 			ub.getFirstStageVec()[bestLockIndex]=ceil(roundedSolution.getFirstStageVec()[bestLockIndex]);
+			cout<<"Rounding variable of first vec "<<bestLockIndex<<" to value "<<roundedSolution.getFirstStageVec()[bestLockIndex]<<endl;
 			return 1;
 		}
 		else{
-			//cout<<"rounded var "<<bestLockIndex<<" "<<maxLock<<" to be "<<floor(roundedSolution.getFirstStageVec()[bestLockIndex])<<endl;
 			roundedSolution.getFirstStageVec()[bestLockIndex]=floor(roundedSolution.getFirstStageVec()[bestLockIndex]);
 			lb.getFirstStageVec()[bestLockIndex]=floor(roundedSolution.getFirstStageVec()[bestLockIndex]);
 			ub.getFirstStageVec()[bestLockIndex]=floor(roundedSolution.getFirstStageVec()[bestLockIndex]);
+			cout<<"Rounding variable of first vec "<<bestLockIndex<<" to value "<<roundedSolution.getFirstStageVec()[bestLockIndex]<<endl;
 			return 1;
-		} 
+		}
 	}
 	return 0;
 }
 int findAndFixSecondStageConstraint(denseBAVector &roundedSolution,denseBAVector & upLocks, denseBAVector &downLocks,denseBAVector &lb,denseBAVector &ub){
 	SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
-	
+
 	const BADimensionsSlacks &originalDimensions= BBSMPSSolver::instance()->getBADimensionsSlacks();
 	const BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
     BAContext &ctx=BBSMPSSolver::instance()->getBAContext();
     PIPSSInterface &rootSolver= BBSMPSSolver::instance()->getPIPSInterface();
     const denseBAVector varObjectives = rootSolver.getVarObjective();
-   
+
 	//First check first stage
 	bool allRowsFeasible=true;
-	//cout<<"ff2"<<endl;
 
 	for (int scen = 0; scen < input.nScenarios() && allRowsFeasible; scen++)
 	{
@@ -371,21 +353,19 @@ int findAndFixSecondStageConstraint(denseBAVector &roundedSolution,denseBAVector
 			for (int c = 0; c < input.nSecondStageCons(scen) && allRowsFeasible; c++)
 			{
 				int brokenDirection=rootSolver.isRowFeasible(c, scen, roundedSolution);
-				//cout<<"Trying to fix constraint "<<c<<" s"<<scen<<" which is broken on the side "<<brokenDirection<<endl;
-		    		
 				if (brokenDirection!=1){
 					allRowsFeasible=false;
-					
+
 					const CoinShallowPackedVector row2=rootSolver.retrieveWRow(c,scen);
 			    	int nElems2=row2.getNumElements();
 					const int*indices2=row2.getIndices();
-					const double *elems2=row2.getElements(); 
+					const double *elems2=row2.getElements();
 					double bestLock=COIN_DBL_MAX;
 					int varIndexOfBestLock=-1;
 					int scenOfBestLock=-1;
 					double objCont=COIN_DBL_MAX;//We are trying to minimize
 					int directionToRound;
-			
+
 			    	for (int el=0; el<nElems2; el++){
 			    		if (input.isSecondStageColInteger(scen,indices2[el]) && !isIntFeas(roundedSolution.getSecondStageVec(scen)[indices2[el]],intTol)){ //We have a possible rounding candidate
 			    			if ((elems2[el]>0 && brokenDirection==-1) || (elems2[el]<0 && brokenDirection==-2) ){ ///If we have the constraint broken in the ub and the cofficient is positive, OR we have the constraint broken in the lb and the coefficient is negative we must round down
@@ -404,26 +384,24 @@ int findAndFixSecondStageConstraint(denseBAVector &roundedSolution,denseBAVector
 			    					scenOfBestLock=scen;
 			    					directionToRound=1;
 			    					objCont=objContribution2(roundedSolution.getSecondStageVec(scen)[indices2[el]],varObjectives.getSecondStageVec(scen)[indices2[el]],1);
-			    				
+
 			    				}
 			    			}
-			    		}    		
+			    		}
 			    	}
-			    
+
 					if (varIndexOfBestLock != -1 && directionToRound==0){//Round down variable
-						//cout<<"rounded var "<<varIndexOfBestLock<<" to be "<<floor(roundedSolution.getSecondStageVec(scenOfBestLock)[varIndexOfBestLock])<<endl;
 						roundedSolution.getSecondStageVec(scenOfBestLock)[varIndexOfBestLock]=floor(roundedSolution.getSecondStageVec(scenOfBestLock)[varIndexOfBestLock]);
 						lb.getSecondStageVec(scenOfBestLock)[varIndexOfBestLock]=floor(roundedSolution.getSecondStageVec(scenOfBestLock)[varIndexOfBestLock]);
 						ub.getSecondStageVec(scenOfBestLock)[varIndexOfBestLock]=floor(roundedSolution.getSecondStageVec(scenOfBestLock)[varIndexOfBestLock]);
-						
+						cout<<"Rounding variable of second vec "<<varIndexOfBestLock<<" scen "<<scenOfBestLock<<" to value "<<roundedSolution.getFirstStageVec()[varIndexOfBestLock]<<endl;
 						return 2;
 					}
 					else if (varIndexOfBestLock != -1 && directionToRound==1){//Round up variable
-						//cout<<"rounded var "<<varIndexOfBestLock<<" to be "<<ceil(roundedSolution.getSecondStageVec(scenOfBestLock)[varIndexOfBestLock])<<endl;
 						roundedSolution.getSecondStageVec(scenOfBestLock)[varIndexOfBestLock]=ceil(roundedSolution.getSecondStageVec(scenOfBestLock)[varIndexOfBestLock]);
 						lb.getSecondStageVec(scenOfBestLock)[varIndexOfBestLock]=ceil(roundedSolution.getSecondStageVec(scenOfBestLock)[varIndexOfBestLock]);
 						ub.getSecondStageVec(scenOfBestLock)[varIndexOfBestLock]=ceil(roundedSolution.getSecondStageVec(scenOfBestLock)[varIndexOfBestLock]);
-						
+						cout<<"Rounding variable of second vec "<<varIndexOfBestLock<<" scen "<<scenOfBestLock<<" to value "<<roundedSolution.getFirstStageVec()[varIndexOfBestLock]<<endl;
 						return 2;
 					}
 
@@ -440,13 +418,12 @@ int findFreshSecondStageVar(denseBAVector &roundedSolution,denseBAVector & upLoc
 	 BAContext &ctx=BBSMPSSolver::instance()->getBAContext();
     PIPSSInterface &rootSolver= BBSMPSSolver::instance()->getPIPSInterface();
     const denseBAVector varObjectives = rootSolver.getVarObjective();
-    
+
 	int bestLockIndex=-1;
 	int bestLockScen=-1;
 	double maxLock=COIN_DBL_MIN;
 	int roundDirection;
 	double objCont=COIN_DBL_MAX;//We are trying to minimize
-	//cout<<"FF2"<<endl;	
 	for (int scen = 0; scen < input.nScenarios(); scen++)
 	{
 		if(ctx.assignedScenario(scen)) {
@@ -473,59 +450,53 @@ int findFreshSecondStageVar(denseBAVector &roundedSolution,denseBAVector & upLoc
 	}
 	if (bestLockIndex!=-1){
 		if (roundDirection==1) {
-			//cout<<"rounded var "<<bestLockIndex<<" s"<<bestLockScen<<" "<<maxLock<<" to be "<<ceil(roundedSolution.getSecondStageVec(bestLockScen)[bestLockIndex])<<endl;	
 			roundedSolution.getSecondStageVec(bestLockScen)[bestLockIndex]=ceil(roundedSolution.getSecondStageVec(bestLockScen)[bestLockIndex]);
 			lb.getSecondStageVec(bestLockScen)[bestLockIndex]=ceil(roundedSolution.getSecondStageVec(bestLockScen)[bestLockIndex]);
 			ub.getSecondStageVec(bestLockScen)[bestLockIndex]=ceil(roundedSolution.getSecondStageVec(bestLockScen)[bestLockIndex]);
-			
+			cout<<"Rounding variable of second vec "<<bestLockIndex<<" scen "<<bestLockScen<<" to value "<<roundedSolution.getFirstStageVec()[bestLockIndex]<<endl;
 			return 1;
 		}
 		else{
-			//cout<<"rounded var "<<bestLockIndex<<" s"<<bestLockScen<<" "<<maxLock<<" to be "<<floor(roundedSolution.getSecondStageVec(bestLockScen)[bestLockIndex])<<endl;
 			roundedSolution.getSecondStageVec(bestLockScen)[bestLockIndex]=floor(roundedSolution.getSecondStageVec(bestLockScen)[bestLockIndex]);
 			lb.getSecondStageVec(bestLockScen)[bestLockIndex]=floor(roundedSolution.getSecondStageVec(bestLockScen)[bestLockIndex]);
 			ub.getSecondStageVec(bestLockScen)[bestLockIndex]=floor(roundedSolution.getSecondStageVec(bestLockScen)[bestLockIndex]);
-			
+			cout<<"Rounding variable of second vec "<<bestLockIndex<<" scen "<<bestLockScen<<" to value "<<roundedSolution.getFirstStageVec()[bestLockIndex]<<endl;
 			return 1;
-		} 
+		}
 	}
-	
+
 	return 0;
 }
 
-bool BBSMPSHeuristicLockRounding::runHeuristic(BBSMPSNode* node, denseBAVector &LPRelaxationSolution, BBSMPSSolution &solution, double objUB){
-	
+bool BBSMPSHeuristicLockRounding::runHeuristic(BBSMPSNode* node, denseBAVector &LPRelaxationSolution){
+
 	double startTimeStamp = MPI_Wtime();
 	int mype=BBSMPSSolver::instance()->getMype();
-	if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Performing the Fix and Dive heuristic.";
+	if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Performing the Lock Rounding heuristic.";
 	timesCalled++;
-	//cout<<"ch1"<<endl;
 	SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
-	
-	const BADimensionsSlacks &originalDimensions= BBSMPSSolver::instance()->getBADimensionsSlacks();
+
+	const BADimensionsSlacks &originalDimensions= BBSMPSSolver::instance()->getOriginalBADimensionsSlacks();
 	const BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
     BAContext &ctx=BBSMPSSolver::instance()->getBAContext();
     PIPSSInterface &rootSolver= BBSMPSSolver::instance()->getPIPSInterface();
-   
+
     int firstStageVars=input.nFirstStageVars();
     int firstStageRows=input.nFirstStageCons();
-   
+
 	denseBAVector upLocks;
     denseBAVector downLocks;
-    upLocks.allocate(dimsSlacks, ctx, PrimalVector);
-	downLocks.allocate(dimsSlacks, ctx, PrimalVector);
+    upLocks.allocate(originalDimensions, ctx, PrimalVector);
+	downLocks.allocate(originalDimensions, ctx, PrimalVector);
    	upLocks.clear();
    	downLocks.clear();
-    //cout<<"ch2"<<endl;
     generateLocks2(upLocks,downLocks);
-    //cout<<"ch3"<<endl;
-    
+
 	int MAX_ITERS=firstStageVars;
    	for (int scen = 0; scen < input.nScenarios(); scen++)
 	{
 		MAX_ITERS+=input.nSecondStageVars(scen);
 	}
-
 
     denseBAVector roundedSolution(LPRelaxationSolution);
 
@@ -533,22 +504,17 @@ bool BBSMPSHeuristicLockRounding::runHeuristic(BBSMPSNode* node, denseBAVector &
     denseBAVector lb(BBSMPSSolver::instance()->getOriginalLB());
 	denseBAVector ub(BBSMPSSolver::instance()->getOriginalUB());
 	node->getAllBranchingInformation(lb,ub);
-	//cout<<"ch4"<<endl;
 
 	BAFlagVector<variableState> ps(BBSMPSSolver::instance()->getOriginalWarmStart());
 	node->reconstructWarmStartState(ps);
 	rootSolver.setStates(ps);
-//cout<<"ch5"<<endl;
 	int iter=0;
     while (!isLPFeasible && iter<MAX_ITERS){
     	iter++;
-    	////cout<<"ITERATIOOOOOOOOOON!!! "<<endl;
-	    bool done=false;
-	    //cout<<"ch6"<<endl;
-	   	while (!done){
+    	bool done=false;
+	    while (!done){
 
 	    	int result= findAndFixFirstStageConstraint(roundedSolution,upLocks,downLocks,lb,ub);
-	    	//cout<<"ch7"<<endl;
 	    	if (result<2){
 	    		//Then we have failed at recovering or it is all good. Either case, check for more integer vars.
 	    		int fresh1VarRes=findFreshFirstStageVar(roundedSolution,upLocks,downLocks,lb,ub);
@@ -556,106 +522,109 @@ bool BBSMPSHeuristicLockRounding::runHeuristic(BBSMPSNode* node, denseBAVector &
 	    			done=true;
 	    		}
 	    	}
-	    	//cout<<"ch8"<<endl;
 	    }
 
-	    
+
 	    rootSolver.setLB(lb);
 		rootSolver.setUB(ub);
 
-		
-		rootSolver.commitStates();
 
+		rootSolver.commitStates();
+		cout<<"about to run iteration "<<iter<<endl;
 
 		//Check if feasible
 		rootSolver.go();
 
 		/* Check solver status for infeasibility/optimality */
 		solverState lpStatus = rootSolver.getStatus();
-		bool otherThanOptimal = (Optimal != lpStatus); 
+		bool otherThanOptimal = (Optimal != lpStatus);
 		if (otherThanOptimal) return false;
 
 	    roundedSolution=(rootSolver.getPrimalSolution());
 
-	    //cout<<"ch9"<<endl;
-		done=false;
+	    done=false;
 
 	    while (!done){
-	    	//cout<<"ch10"<<endl;
-			//Then we have failed at finding a new first stage variable. Let's look for second stage consts for fixing
+	    	//Then we have failed at finding a new first stage variable. Let's look for second stage consts for fixing
 			int result2= findAndFixSecondStageConstraint(roundedSolution,upLocks,downLocks,lb,ub);
-			//cout<<"ch11"<<endl;
-			////cout<<"We returned "<<result2<<endl;
 			if (result2<2){
 				//Then we have failed at recovering or it is all good. Either case, check for more 2nd stage integer vars
 				int fresh2VarRes=findFreshSecondStageVar(roundedSolution,upLocks,downLocks,lb,ub);
 				if (fresh2VarRes==0)done=true;
 			}
-			//cout<<"ch12"<<endl;
 		}
 
 		rootSolver.setLB(lb);
 		rootSolver.setUB(ub);
+		rootSolver.commitStates();
+
 		rootSolver.go();
 
 		/* Check solver status for infeasibility/optimality */
 		lpStatus = rootSolver.getStatus();
-		otherThanOptimal = (Optimal != lpStatus); 
+		otherThanOptimal = (Optimal != lpStatus);
 
 		int anyOtherThanOptimal=0;
 	     MPI_Allreduce(&anyOtherThanOptimal, &otherThanOptimal, 1, MPI_INT,  MPI_MAX, ctx.comm());
 
 		if (anyOtherThanOptimal>0) return false;
-		
+
 	    roundedSolution=(rootSolver.getPrimalSolution());
 
 	    isLPFeasible = isLPIntFeas(roundedSolution);
-	    //cout<<"ch13"<<endl;
-	    ////cout<<"Are we LP Feasible "<<isLPFeasible<<endl;
+
 	}
 
-	
+
 	solverState lpStatus = rootSolver.getStatus();
-	bool otherThanOptimal = (Optimal != lpStatus); 
-	
+	bool otherThanOptimal = (Optimal != lpStatus);
+
+	double objUB=COIN_DBL_MAX;
+	if (BBSMPSSolver::instance()->getSolPoolSize()>0)objUB=BBSMPSSolver::instance()->getSoln(0).getObjValue();
+
 	if(!otherThanOptimal){
 		denseBAVector solVector=rootSolver.getPrimalSolution();
-		solution=BBSMPSSolution(solVector,rootSolver.getObjective());
-		cout<<"DID WE FIND A LOCK ROUNDING SOLUTION "<<isLPIntFeas(solVector)<<" of qual "<<rootSolver.getObjective()<<endl;
+		if (isLPIntFeas(solVector)){
+					BBSMPSSolution sol(solVector,rootSolver.getObjective());
+					sol.setTimeOfDiscovery(BBSMPSSolver::instance()->getWallTime());
+					BBSMPSSolver::instance()->addSolutionToPool(sol);
+		}
 
-		
+
 	}
-	//cout<<"ch14"<<endl;
+
 	//return if success
+
 	bool success= (!otherThanOptimal && rootSolver.getObjective()<objUB);
 	timesSuccessful+=success;
 
-		
+
 	cumulativeTime+=(MPI_Wtime()-startTimeStamp);
 	return success;
 
 }
 
 bool BBSMPSHeuristicLockRounding::shouldItRun(BBSMPSNode* node, denseBAVector &LPRelaxationSolution){
-	if (node->getNodeDepth()<10)return true;
+	if (node->getNodeDepth()<5)return true;
+	else depth=25;
 	SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
 	BAContext &ctx= BBSMPSSolver::instance()->getBAContext();
-	
+
 	int numberOfFractionalVariables=0;
 	int nIntVars=0;
 	for (int col = 0; col < input.nFirstStageVars(); col++)
-	{	
+	{
 		if(input.isFirstStageColInteger(col)){
 			numberOfFractionalVariables+=(!isIntFeas(LPRelaxationSolution.getFirstStageVec()[col],intTol));
 			nIntVars++;
 		}
-		
+
 	}
-	
+
 	int numberOfFractionalVariables2=0;
 	int nIntVars2=0;
 
-	
+
 	for (int scen = 0; scen < input.nScenarios(); scen++)
 	{
 		if(ctx.assignedScenario(scen)) {
@@ -665,7 +634,7 @@ bool BBSMPSHeuristicLockRounding::shouldItRun(BBSMPSNode* node, denseBAVector &L
 				if(input.isSecondStageColInteger(scen,col)){
 					numberOfFractionalVariables2+=(!isIntFeas(LPRelaxationSolution.getSecondStageVec(scen)[col],intTol));
 					nIntVars2++;
-					
+
 				}
 			}
 		}
@@ -675,7 +644,7 @@ bool BBSMPSHeuristicLockRounding::shouldItRun(BBSMPSNode* node, denseBAVector &L
 	int errorFlag = MPI_Allreduce(&numberOfFractionalVariables2,
 		&totalCount2,
 		1,
-		MPI_INT, 
+		MPI_INT,
 		MPI_SUM,
 		ctx.comm());
 
@@ -683,15 +652,14 @@ bool BBSMPSHeuristicLockRounding::shouldItRun(BBSMPSNode* node, denseBAVector &L
 	errorFlag = MPI_Allreduce(&nIntVars2,
 		&totalIntVars2,
 		1,
-		MPI_INT, 
+		MPI_INT,
 		MPI_SUM,
 		ctx.comm());
 
 
 	nIntVars+=totalIntVars2;
 	numberOfFractionalVariables=+totalCount2;
-	cout<<"Total number of frac vars "<<numberOfFractionalVariables<<" n int vars "<<nIntVars<<	" ratio "<<(numberOfFractionalVariables*100/nIntVars)<<endl;
-	
+
 	if (nIntVars==0)return false;
 	return ((numberOfFractionalVariables*100/nIntVars)<40 );
 

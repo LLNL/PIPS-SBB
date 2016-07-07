@@ -12,7 +12,7 @@
    Limitations: Due to design restrictions, the tree shouldn't access the internals of any
                 object, but merely act as the coordinator/manager.
 
-*/ 
+*/
 // ----------------------------------------------------------------------------
 
 
@@ -33,7 +33,7 @@
 #include <cmath> // for floor, ceil, abs functions
 #include <algorithm> // for min
 #include <set>
-#include <utility> 
+#include <utility>
 
 
 
@@ -53,10 +53,13 @@
 #include "BBSMPSHeuristicCrossover.hpp"
 #include "BBSMPSHeuristicLockRounding.hpp"
 #include "BBSMPSHeuristicMagic.hpp"
-#include "BBSMPSHeuristicSolutionRINS.hpp"         
+#include "BBSMPSHeuristicSolutionRINS.hpp"
 #include "BBSMPSHeuristicBestRINSJump.hpp"
 #include "BBSMPSHeuristicSolutionPolishing.hpp"
 #include "BBSMPSPseudoCostBranchingRule.hpp"
+#include "BBSMPSCuttingPlane.hpp"
+#include "BBSMPSCuttingPlaneGenerator01KP.hpp"
+#include "BBSMPSCuttingPlanesManager.hpp"
 // Outputs solver status:
 void outputLPStatus(solverState lpStatus);
 
@@ -79,7 +82,7 @@ public:
     return (lhs->getNodeNumber() < rhs->getNodeNumber());
   }
   return (lhs->getParentObjective() > rhs->getParentObjective());
-  
+
  }
 };
 
@@ -109,7 +112,7 @@ public:
 
   BBSMPSTree(const SMPSInput& smps);
 
-  BBSMPSTree(BBSMPSNode &node, double lb=COIN_DBL_MIN, double ub=COIN_DBL_MAX);
+  BBSMPSTree(BBSMPSNode *node, double lb=COIN_DBL_MIN, double ub=COIN_DBL_MAX);
 
   // Default destructor
   ~BBSMPSTree();
@@ -120,6 +123,8 @@ public:
 
   void setSolLimit(int _solLim);
 
+  void setGAPTolLimit( double _GAPTolLim);
+
   bool retrieveBestSolution(BBSMPSSolution &solution);
 
   void branchAndBound();
@@ -128,15 +133,23 @@ public:
 
   void loadMIPHeuristics();
 
+  void loadCuttingPlanes();
+
   void setVerbosity(bool verbose);
 
+  void removeCuts();
 
-  void loadHeuristic(BBSMPSHeuristic *heur);
+
+void loadLPHeuristic(BBSMPSHeuristic *heur);
+  void loadMIPHeuristic(BBSMPSHeuristic *heur);
   void generateIncrementalWarmState(BBSMPSNode* node, const BAFlagVector<variableState> & originalState, const BAFlagVector<variableState> &currentState);
 
 
   BBSMPSNode* topOfHeap();
 
+  static BBSMPSNode* getRootNode(){
+    return rootNode;
+  }
 
 
   void setLB(double lb){ objLB=lb;};
@@ -146,15 +159,14 @@ public:
 private:
 
 
-
-    // Node selection rule, determines which node is chosen next. By default, it is bestbound, 
+    // Node selection rule, determines which node is chosen next. By default, it is bestbound,
   // by using the min-heap. To handle other rules, we will need to refactor priority_queue to vector,
   // with make_heap, etc. (Except for depth-first, which doesn't need to make_heap)
   nodeSelectionRule nodesel;
-  
+
   double objUB; // best upper bound on objective function value
   denseBAVector ubPrimalSolution; // primal solution for best UB on obj
-  
+
   double objLB; // best lower bound on objective function value
 
   //double intTol; // tolerance on integrality checks
@@ -178,8 +190,10 @@ private:
   int nodesBecameInteger;
   bool verbosityActivated;
 
+  vector<int> currentlyAppliedPlanes;
   BBSMPSBranchingRuleManager branchingRuleManager;
   BBSMPSHeuristicsManager heuristicsManager;
+  BBSMPSCuttingPlanesManager cuttingPlanesManager;
   // max-heap data structure with nodes
   // TODO: Refactor to vector<BranchAndBound> & replace w/ make_heap, push_heap, pop_heap
   //std::priority_queue<BBSMPSNode, std::vector<BBSMPSNode>, std::less<BBSMPSNode> > heap; // max-heap
@@ -191,6 +205,8 @@ private:
   // to the solver has to load problem data from a file as one of the first
   // steps.
   BBSMPSSolverState status;
+
+  static BBSMPSNode* rootNode;
 
     // Auxiliary functions for branching
   int getFirstStageMinIntInfeasCol(const denseBAVector& primalSoln);
@@ -204,7 +220,8 @@ private:
   void setStatusToStopped();
 
 
-  
+
+
   // Make default constructor impossible to call.
   BBSMPSTree();
 

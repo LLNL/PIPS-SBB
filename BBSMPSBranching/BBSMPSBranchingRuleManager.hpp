@@ -7,7 +7,7 @@
 
    Limitations: Branching rules are only ordered by priority.
 
-*/ 
+*/
 // ----------------------------------------------------------------------------
 
 #ifndef BBSMPSBRANCHINGRULEMANAGER_H
@@ -19,7 +19,7 @@
 struct BRPriorityOrdering
 {
 	bool operator() (const BBSMPSBranchingRule* lhs, const BBSMPSBranchingRule* rhs) const
-	{	
+	{
 		return (lhs->getPriority() > rhs->getPriority());
 	}
 };
@@ -28,15 +28,15 @@ struct BRPriorityOrdering
 class BBSMPSBranchingRuleManager {
 
 public:
-	
+
 	BBSMPSBranchingRuleManager();
-	
+
 	~BBSMPSBranchingRuleManager();
 
 	void addBranchingRule(BBSMPSBranchingRule *rule);
 
 	bool branch(BBSMPSNode * node, std::vector<BBSMPSNode*> &childNodes,  const denseBAVector& primalSoln);
-	
+
 	void printStatistics();
 
 	void freeResources();
