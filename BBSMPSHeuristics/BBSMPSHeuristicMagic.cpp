@@ -5,26 +5,27 @@ using namespace std;
 
 
 
-bool BBSMPSHeuristicMagic::runHeuristic(BBSMPSNode* node, denseBAVector &LPRelaxationSolution, BBSMPSSolution &solution, double objUB){
-	
-	double startTimeStamp = MPI_Wtime();
+bool BBSMPSHeuristicMagic::runHeuristic(BBSMPSNode* node, denseBAVector &LPRelaxationSolution){
 	int mype=BBSMPSSolver::instance()->getMype();
-	if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Performing the Fix and Dive heuristic.";
+
+	if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Performing the Magic heuristic.";
+
+	double startTimeStamp = MPI_Wtime();
+
 	timesCalled++;
 
-
 	SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
-	
+
 	const BADimensionsSlacks &originalDimensions= BBSMPSSolver::instance()->getBADimensionsSlacks();
 	const BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
     BAContext &ctx=BBSMPSSolver::instance()->getBAContext();
     PIPSSInterface &rootSolver= BBSMPSSolver::instance()->getPIPSInterface();
-   
 
-	
+
+
     int firstStageVars=input.nFirstStageVars();
     int firstStageRows=input.nFirstStageCons();
-   
+
 
 	denseBAVector upLocks;
     denseBAVector downLocks;
@@ -32,17 +33,16 @@ bool BBSMPSHeuristicMagic::runHeuristic(BBSMPSNode* node, denseBAVector &LPRelax
 	downLocks.allocate(dimsSlacks, ctx, PrimalVector);
    	upLocks.clear();
    	downLocks.clear();
-    
+
     for (int scen = 0; scen < input.nScenarios(); scen++)
 	{
 		if(ctx.assignedScenario(scen)) {
 			for (int c = 0; c < input.nSecondStageCons(scen); c++)
 			{
-
 				const CoinShallowPackedVector row=rootSolver.retrieveTRow(c,scen);
 				int nElems=row.getNumElements();
 				const int*indices=row.getIndices();
-				const double *elems=row.getElements(); 
+				const double *elems=row.getElements();
 		    	for (int el=0; el<nElems; el++){
 		    		if (elems[el]>0)upLocks.getFirstStageVec()[indices[el]]++;
 		    		else downLocks.getFirstStageVec()[indices[el]]++;
@@ -52,7 +52,7 @@ bool BBSMPSHeuristicMagic::runHeuristic(BBSMPSNode* node, denseBAVector &LPRelax
 		    	const CoinShallowPackedVector row2=rootSolver.retrieveWRow(c,scen);
 		    	int nElems2=row2.getNumElements();
 				const int* indices2=row2.getIndices();
-				const double *elems2=row2.getElements(); 
+				const double *elems2=row2.getElements();
 
 		    	for (int el=0; el<nElems2; el++){
 		    		if (elems2[el]>0)upLocks.getSecondStageVec(scen)[indices2[el]]++;
@@ -65,21 +65,21 @@ bool BBSMPSHeuristicMagic::runHeuristic(BBSMPSNode* node, denseBAVector &LPRelax
 
 		}
     }
-     
+
 
     //At this point each vector has its own count of first stage locks. Let's reduce
     double *upLock1stStagePtr = upLocks.getFirstStageVec().getPointer();
     double *downLock1stStagePtr = downLocks.getFirstStageVec().getPointer();
     MPI_Allreduce(MPI_IN_PLACE,upLock1stStagePtr,upLocks.getFirstStageVec().length(),MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
     MPI_Allreduce(MPI_IN_PLACE,downLock1stStagePtr,downLocks.getFirstStageVec().length(),MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-    
+
 
     for (int c=0; c< firstStageRows ; c++){
 
     	const CoinShallowPackedVector row=rootSolver.retrieveARow(c);
     	int nElems=row.getNumElements();
 		const int*indices=row.getIndices();
-		const double *elems=row.getElements(); 
+		const double *elems=row.getElements();
 
     	for (int el=0; el<nElems; el++){
     		if (elems[el]>0)upLocks.getFirstStageVec()[indices[el]]++;
@@ -97,7 +97,7 @@ bool BBSMPSHeuristicMagic::runHeuristic(BBSMPSNode* node, denseBAVector &LPRelax
 	node->getAllBranchingInformation(lb,ub);
 
 	denseBAVector auxSolution(LPRelaxationSolution);
-	
+
 	//Get all variables
 	BAFlagVector<variableState> ps(BBSMPSSolver::instance()->getOriginalWarmStart());
 	node->reconstructWarmStartState(ps);
@@ -112,48 +112,45 @@ bool BBSMPSHeuristicMagic::runHeuristic(BBSMPSNode* node, denseBAVector &LPRelax
     		bestLockIndex=i;
     		bestLock=upLocks.getFirstStageVec()[i];
     		bestVarObj=variableObjectives.getFirstStageVec()[i];
-    		
+
     	}
     	if (((downLocks.getFirstStageVec()[i]> bestLock)|| (downLocks.getFirstStageVec()[i]== bestLock && bestVarObj>variableObjectives.getFirstStageVec()[i])) && input.isFirstStageColInteger(i) && !isIntFeas(auxSolution.getFirstStageVec()[i], intTol)){
     		bestLockIndex=i;
     		bestLock=downLocks.getFirstStageVec()[i];
     		bestVarObj=variableObjectives.getFirstStageVec()[i];
-    	
+
     	}
     }
     bool allInteger=(bestLockIndex==-1);
-	
+
 	while(!allInteger){
-		
+
 		if (bestLock==upLocks.getFirstStageVec()[bestLockIndex] && bestLock==downLocks.getFirstStageVec()[bestLockIndex]){
 
 			lb.getFirstStageVec()[bestLockIndex]=roundToNearestInteger(auxSolution.getFirstStageVec()[bestLockIndex]);
 			ub.getFirstStageVec()[bestLockIndex]=roundToNearestInteger(auxSolution.getFirstStageVec()[bestLockIndex]);
-		//	cout<<"Rounding Nearest -1 "<<bestLockIndex<<" to "<<lb.getFirstStageVec()[bestLockIndex]<<" Score: "<<downLocks.getFirstStageVec()[bestLockIndex]<<" "<<upLocks.getFirstStageVec()[bestLockIndex]<<" obj "<<variableObjectives.getFirstStageVec()[bestLockIndex]<<endl;
-	
+
 		}
 		else if (bestLock==upLocks.getFirstStageVec()[bestLockIndex]){
 
 			lb.getFirstStageVec()[bestLockIndex]=floor(auxSolution.getFirstStageVec()[bestLockIndex]);
-			ub.getFirstStageVec()[bestLockIndex]=floor(auxSolution.getFirstStageVec()[bestLockIndex]);	
-		//	cout<<"Rounding down -1 "<<bestLockIndex<<" to "<<lb.getFirstStageVec()[bestLockIndex]<<" Score: "<<downLocks.getFirstStageVec()[bestLockIndex]<<" "<<upLocks.getFirstStageVec()[bestLockIndex]<<" obj "<<variableObjectives.getFirstStageVec()[bestLockIndex]<<endl;
+			ub.getFirstStageVec()[bestLockIndex]=floor(auxSolution.getFirstStageVec()[bestLockIndex]);
 		}
 		else{
 
 			lb.getFirstStageVec()[bestLockIndex]=ceil(auxSolution.getFirstStageVec()[bestLockIndex]);
 			ub.getFirstStageVec()[bestLockIndex]=ceil(auxSolution.getFirstStageVec()[bestLockIndex]);
-		//	cout<<"Rounding up -1 "<<bestLockIndex<<" to "<<lb.getFirstStageVec()[bestLockIndex]<<" Score: "<<downLocks.getFirstStageVec()[bestLockIndex]<<" "<<upLocks.getFirstStageVec()[bestLockIndex]<<" obj "<<variableObjectives.getFirstStageVec()[bestLockIndex]<<endl;
 		}
-		
+
 		rootSolver.setLB(lb);
 		rootSolver.setUB(ub);
 
-		rootSolver.commitStates();	
+		rootSolver.commitStates();
 
 		rootSolver.go();
 
 		solverState lpStatus = rootSolver.getStatus();
-		bool otherThanOptimal = (Optimal != lpStatus); 
+		bool otherThanOptimal = (Optimal != lpStatus);
 		if (otherThanOptimal) return false;
 		auxSolution=rootSolver.getPrimalSolution();
 
@@ -165,19 +162,19 @@ bool BBSMPSHeuristicMagic::runHeuristic(BBSMPSNode* node, denseBAVector &LPRelax
     		bestLockIndex=i;
     		bestLock=upLocks.getFirstStageVec()[i];
     		bestVarObj=variableObjectives.getFirstStageVec()[i];
-    		
+
 	    	}
 	    	if (((downLocks.getFirstStageVec()[i]> bestLock)|| (downLocks.getFirstStageVec()[i]== bestLock && bestVarObj>variableObjectives.getFirstStageVec()[i])) && input.isFirstStageColInteger(i) && !isIntFeas(auxSolution.getFirstStageVec()[i], intTol)){
 	    		bestLockIndex=i;
 	    		bestLock=downLocks.getFirstStageVec()[i];
 	    		bestVarObj=variableObjectives.getFirstStageVec()[i];
-	    	
+
 	    	}
 	    }
 	    allInteger=(bestLockIndex==-1);
 
 	}
- 
+
 
 	int bestLockScen=-1;
 	bestLockIndex=-1;
@@ -201,49 +198,42 @@ bool BBSMPSHeuristicMagic::runHeuristic(BBSMPSNode* node, denseBAVector &LPRelax
 		    }
 		}
 	}
-	
-	
+
+
 	int maxCont;
 	int errorFlag = MPI_Allreduce(&bestLockIndex, &maxCont, 1, MPI_INT,  MPI_MAX, ctx.comm());
 	int iteration=0;
 	while (maxCont>-1){
 		iteration++;
 		if (bestLockIndex>-1){
-			// cout<<input.nSecondStageVars(bestFracScen)<<" we are about to update!!"<<mype<<" has chosen "<<bestFracIndex<<" frac part "<<bestFracPart<<" frac scen "<<bestFracScen<<" "<<maxCont<<endl;
-	
+
 		if (bestLock==upLocks.getSecondStageVec(bestLockScen)[bestLockIndex] && bestLock==downLocks.getSecondStageVec(bestLockScen)[bestLockIndex]){
 			lb.getSecondStageVec(bestLockScen)[bestLockIndex]=roundToNearestInteger(auxSolution.getSecondStageVec(bestLockScen)[bestLockIndex]);
 			ub.getSecondStageVec(bestLockScen)[bestLockIndex]=roundToNearestInteger(auxSolution.getSecondStageVec(bestLockScen)[bestLockIndex]);
-		//	 cout<<" we are about to update!!"<<mype<<" has chosen "<<bestLockIndex<<" frac  "<<roundToNearestInteger(auxSolution.getSecondStageVec(bestLockScen)[bestLockIndex])<<"best lock "<<bestLock<<endl;
-	
+
 		}
 
-	
+
 			if (bestLock==upLocks.getSecondStageVec(bestLockScen)[bestLockIndex] ){
-		//		 cout<<" we are about to update!!"<<mype<<" has chosen "<<bestLockIndex<<" frac  "<<floor(auxSolution.getSecondStageVec(bestLockScen)[bestLockIndex])<<"best lock "<<bestLock<<endl;
-	
+
 				lb.getSecondStageVec(bestLockScen)[bestLockIndex]=floor(auxSolution.getSecondStageVec(bestLockScen)[bestLockIndex]);
 				ub.getSecondStageVec(bestLockScen)[bestLockIndex]=floor(auxSolution.getSecondStageVec(bestLockScen)[bestLockIndex]);
-			
+
 			}
 			else{
-		//		 cout<<" we are about to update!!"<<mype<<" has chosen "<<bestLockIndex<<" frac  "<<ceil(auxSolution.getSecondStageVec(bestLockScen)[bestLockIndex])<<"best lock "<<bestLock<<endl;
-	
+
 				lb.getSecondStageVec(bestLockScen)[bestLockIndex]=ceil(auxSolution.getSecondStageVec(bestLockScen)[bestLockIndex]);
 				ub.getSecondStageVec(bestLockScen)[bestLockIndex]=ceil(auxSolution.getSecondStageVec(bestLockScen)[bestLockIndex]);
 			}
-		
-			
+
+
 		}
 		rootSolver.setLB(lb);
 			rootSolver.setUB(ub);
-		//cout<<mype<<" got here "<<endl;
-		rootSolver.commitStates();	
-//cout<<mype<<" got here 2"<<endl;
+		rootSolver.commitStates();
 		rootSolver.go();
-//cout<<mype<<" got here3 "<<endl;
 		solverState lpStatus = rootSolver.getStatus();
-		bool otherThanOptimal = (Optimal != lpStatus); 
+		bool otherThanOptimal = (Optimal != lpStatus);
 		int anyOtherThanOptimal=0;
 	     MPI_Allreduce(&anyOtherThanOptimal, &otherThanOptimal, 1, MPI_INT,  MPI_MAX, ctx.comm());
 
@@ -254,7 +244,7 @@ bool BBSMPSHeuristicMagic::runHeuristic(BBSMPSNode* node, denseBAVector &LPRelax
 		bestLockScen=-1;
 		bestLockIndex=-1;
 		bestLock=-1;
-	
+
 		bestVarObj=COIN_DBL_MAX;
 		for (int scen = 0; scen < input.nScenarios(); scen++)
 		{
@@ -274,28 +264,34 @@ bool BBSMPSHeuristicMagic::runHeuristic(BBSMPSNode* node, denseBAVector &LPRelax
 			    }
 			}
 		}
-		
+
 		maxCont=-2;
 	    errorFlag = MPI_Allreduce(&bestLock, &maxCont, 1, MPI_INT,  MPI_MAX, ctx.comm());
 
-	   // cout<<iteration<<" "<<mype<<" has chosen "<<bestLockIndex<<" frac part "<<bestLock<<" frac scen "<<bestLockScen<<" "<<maxCont<<endl;
 
 	}
 
-   	
+
 	solverState lpStatus = rootSolver.getStatus();
-	bool otherThanOptimal = (Optimal != lpStatus); 
-	
+	bool otherThanOptimal = (Optimal != lpStatus);
+
+	double objUB=COIN_DBL_MAX;
+	if (BBSMPSSolver::instance()->getSolPoolSize()>0)objUB=BBSMPSSolver::instance()->getSoln(0).getObjValue();
+
 	if(!otherThanOptimal){
 		denseBAVector solVector=rootSolver.getPrimalSolution();
-		solution=BBSMPSSolution(solVector,rootSolver.getObjective());
+		if (isLPIntFeas(solVector)){
+					BBSMPSSolution sol(solVector,rootSolver.getObjective());
+					sol.setTimeOfDiscovery(BBSMPSSolver::instance()->getWallTime());
+					BBSMPSSolver::instance()->addSolutionToPool(sol);
+		}
 
-		 
+
 	}
 	//return if success
 	bool success= (!otherThanOptimal && rootSolver.getObjective()<objUB);
 	timesSuccessful+=(success);
-	
+
 
 	cumulativeTime+=(MPI_Wtime()-startTimeStamp);
 	return success;
@@ -305,22 +301,22 @@ bool BBSMPSHeuristicMagic::runHeuristic(BBSMPSNode* node, denseBAVector &LPRelax
 bool BBSMPSHeuristicMagic::shouldItRun(BBSMPSNode* node, denseBAVector &LPRelaxationSolution){
 	/*SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
 	BAContext &ctx= BBSMPSSolver::instance()->getBAContext();
-	
+
 	int numberOfFractionalVariables=0;
 	int nIntVars=0;
 	for (int col = 0; col < input.nFirstStageVars(); col++)
-	{	
+	{
 		if(input.isFirstStageColInteger(col)){
 			numberOfFractionalVariables+=(!isIntFeas(LPRelaxationSolution.getFirstStageVec()[col],intTol));
 			nIntVars++;
 		}
-		
+
 	}
-	
+
 	int numberOfFractionalVariables2=0;
 	int nIntVars2=0;
 
-	
+
 	for (int scen = 0; scen < input.nScenarios(); scen++)
 	{
 		if(ctx.assignedScenario(scen)) {
@@ -330,7 +326,7 @@ bool BBSMPSHeuristicMagic::shouldItRun(BBSMPSNode* node, denseBAVector &LPRelaxa
 				if(input.isSecondStageColInteger(scen,col)){
 					numberOfFractionalVariables2+=(!isIntFeas(LPRelaxationSolution.getSecondStageVec(scen)[col],intTol));
 					nIntVars2++;
-					
+
 				}
 			}
 		}
@@ -340,7 +336,7 @@ bool BBSMPSHeuristicMagic::shouldItRun(BBSMPSNode* node, denseBAVector &LPRelaxa
 	int errorFlag = MPI_Allreduce(&numberOfFractionalVariables2,
 		&totalCount2,
 		1,
-		MPI_INT, 
+		MPI_INT,
 		MPI_SUM,
 		ctx.comm());
 
@@ -348,7 +344,7 @@ bool BBSMPSHeuristicMagic::shouldItRun(BBSMPSNode* node, denseBAVector &LPRelaxa
 	errorFlag = MPI_Allreduce(&nIntVars2,
 		&totalIntVars2,
 		1,
-		MPI_INT, 
+		MPI_INT,
 		MPI_SUM,
 		ctx.comm());
 

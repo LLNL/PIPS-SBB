@@ -14,7 +14,7 @@ partialStartState(states) {
   nodeNumber=(++nodeCounter);
   nodeDepth=-1;
   if (nodeCounter==1) nodeDepth=0;
-  
+
 }
 
 
@@ -30,7 +30,7 @@ nodeNumber(sourceNode.nodeNumber),
 nodeDepth(sourceNode.nodeDepth) {}
 BBSMPSNode::BBSMPSNode(BBSMPSNode* parent_ptr, std::vector<BBSMPSBranchingInfo>& bInfos){
 
-  
+
   if (parent_ptr!=NULL){
     parent=parent_ptr;
     parent->incrementAliveChildren();
@@ -53,7 +53,9 @@ BBSMPSNode::~BBSMPSNode(){
   if(parent!=NULL){
     parent->decrementAliveChildren();
   }
-  
+  for (int i=0; i<cuttingPlanes.size();i++) {
+    if (cuttingPlanes[i])delete cuttingPlanes[i];
+  }
 }
 
 double BBSMPSNode::getParentObjective() const{
@@ -89,21 +91,24 @@ void BBSMPSNode::addBranchingInformation(BBSMPSBranchingInfo& bi){
 
 void BBSMPSNode::auxCopyAllBranchingInformation(std::vector<BBSMPSBranchingInfo> &biVector){
   if (parent!=NULL)parent->auxCopyAllBranchingInformation(biVector);
-  if (branchingInfos.size()>0)  biVector.insert(biVector.end(),branchingInfos.begin(), branchingInfos.end());
-  
+  if (branchingInfos.size()>0)  {
+
+    biVector.insert(biVector.end(),branchingInfos.begin(), branchingInfos.end());
+  }
+
 }
 
 void BBSMPSNode::auxCopyAllCuttingPlaneInformation(std::vector<BBSMPSCuttingPlane*> &cpVector){
   if (parent!=NULL)parent->auxCopyAllCuttingPlaneInformation(cpVector);
    for (int i=0; i< cuttingPlanes.size(); i++){
-    cpVector.push_back(&cuttingPlanes[i]);
-  }  
-  
+    cpVector.push_back(cuttingPlanes[i]);
+  }
+
 }
 
 void BBSMPSNode::incrementAliveChildren(){
   childrenAlive++;
-} 
+}
 
 void BBSMPSNode::decrementAliveChildren(){
   assert(childrenAlive>0);//we should always have children before calling this.
@@ -136,9 +141,10 @@ void BBSMPSNode::reconstructWarmStartState(BAFlagVector<variableState> &state){
 
   if (parent!=NULL) parent->reconstructWarmStartState(state);
   for (int i=0; i< partialStartState.size(); i++){
-    //std::cout<<"Updating "<<partialStartState[i].first.scen<<" "<<partialStartState[i].first.idx<<" with "<<partialStartState[i].second<<endl;
+   // if (state.getVec(partialStartState[i].first.scen).length()<=partialStartState[i].first.idx) std::cout<<"Updating "<<partialStartState[i].first.scen<<" "<<partialStartState[i].first.idx<<" with "<<partialStartState[i].second<<" limit "<<state.getVec(partialStartState[i].first.scen).length()<<endl;
     state.getVec(partialStartState[i].first.scen)[partialStartState[i].first.idx]=partialStartState[i].second;
   }
+ // cout<<"we got out "<<endl;
 }
 
 
@@ -214,8 +220,9 @@ int BBSMPSNode::getNodeDepth(){
   return nodeDepth;
 }
 
-void BBSMPSNode::addCuttingPlane(BBSMPSCuttingPlane &cp){
+void BBSMPSNode::addCuttingPlane(BBSMPSCuttingPlane *cp){
   cuttingPlanes.push_back(cp);
+  cuttingPlaneUids.push_back(cuttingPlanes[cuttingPlanes.size()-1]->getPlaneUid());
 }
 
 int BBSMPSNode::getNumberOfCuttingPlanes(){
@@ -235,6 +242,28 @@ void BBSMPSNode::getAllCuttingPlanes(std::vector<BBSMPSCuttingPlane*> &cpVector)
 
 }
 
+void BBSMPSNode::getAllCuttingUids(std::vector<int> &uidVector){
+  BBSMPSNode* n_ptr = parent;
+  int nCuttingPlanes=getNumberOfCuttingPlanes();
+  while(n_ptr!=NULL){
+    nCuttingPlanes+=n_ptr->getNumberOfCuttingPlanes();
+    n_ptr=n_ptr->parent;
+
+  }
+  uidVector.reserve(nCuttingPlanes);
+  getCurrentNodeCuttingPlaneUids(uidVector);
+  n_ptr = parent;
+  while(n_ptr!=NULL){
+    n_ptr->getCurrentNodeCuttingPlaneUids(uidVector);
+    n_ptr=n_ptr->parent;
+
+  }
+
+}
+
+  void BBSMPSNode::getCurrentNodeCuttingPlaneUids(std::vector<int> &uidVector){
+    uidVector.insert(uidVector.end(), cuttingPlaneUids.begin(), cuttingPlaneUids.end());
+  }
 
   void BBSMPSNode::getGrandParentCuttingPlanes(std::vector<BBSMPSCuttingPlane*> &cpVector){
     BBSMPSNode* n_ptr = parent;
@@ -249,12 +278,12 @@ void BBSMPSNode::getAllCuttingPlanes(std::vector<BBSMPSCuttingPlane*> &cpVector)
       cpVector.reserve(nCuttingPlanes);
       parent->parent->auxCopyAllCuttingPlaneInformation(cpVector);
     }
-    
+
 
   }
 
   void BBSMPSNode::getParentNodeCuttingPlanes(std::vector<BBSMPSCuttingPlane*> &cpVector){
-    
+
     if (parent!=NULL) parent->getCurrentNodeCuttingPlanes(cpVector);
 
 
@@ -262,12 +291,20 @@ void BBSMPSNode::getAllCuttingPlanes(std::vector<BBSMPSCuttingPlane*> &cpVector)
 
    void BBSMPSNode::getCurrentNodeCuttingPlanes(std::vector<BBSMPSCuttingPlane*> &cpVector){
     for (int i=0; i< cuttingPlanes.size(); i++){
-      cpVector.push_back(&cuttingPlanes[i]);
-    }  
+      cpVector.push_back(cuttingPlanes[i]);
+    }
 
   }
 
 
+void BBSMPSNode::copyCuttingPlanes(BBSMPSNode *node){
+      std::vector<BBSMPSCuttingPlane*> allPlaneVector;
+      node->getAllCuttingPlanes(allPlaneVector);
+      for (int i=0; i< allPlaneVector.size(); i++){
+        BBSMPSCuttingPlane *plane= new BBSMPSCuttingPlane(*(allPlaneVector[i]));
+        addCuttingPlane(plane);
+      }
+  }
 
 
 

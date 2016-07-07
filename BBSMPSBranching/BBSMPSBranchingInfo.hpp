@@ -5,7 +5,7 @@
    Description: Container class for storing the information relative to a single branching
    				decision.
 
-*/ 
+*/
 // ----------------------------------------------------------------------------
 
 
@@ -24,7 +24,7 @@ public:
 	char getDirection();
 	int getStageNumber();
 	int getScenarioNumber();
-	
+
 private:
 	int varNumber;
 	double bound;

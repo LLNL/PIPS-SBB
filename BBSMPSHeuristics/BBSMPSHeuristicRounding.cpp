@@ -3,13 +3,12 @@
 using namespace std;
 
 
-bool BBSMPSHeuristicRounding::runHeuristic(BBSMPSNode* node, denseBAVector &LPRelaxationSolution, BBSMPSSolution &solution, double objUB){
-	
+bool BBSMPSHeuristicRounding::runHeuristic(BBSMPSNode* node, denseBAVector &LPRelaxationSolution){
 	double startTimeStamp = MPI_Wtime();
 	int mype=BBSMPSSolver::instance()->getMype();
 	timesCalled++;
 	if (0 == mype) BBSMPS_ALG_LOG_SEV(info) << "Performing the simple rounding heuristic.";
-		
+
 
 	PIPSSInterface &rootSolver= BBSMPSSolver::instance()->getPIPSInterface();
     SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
@@ -18,9 +17,9 @@ bool BBSMPSHeuristicRounding::runHeuristic(BBSMPSNode* node, denseBAVector &LPRe
 	denseBAVector ub(BBSMPSSolver::instance()->getOriginalUB());
 	node->getAllBranchingInformation(lb,ub);
 
-	//Apply Simple rounding to 1st stage vars 
+	//Apply Simple rounding to 1st stage vars
 	for (int col = 0; col < input.nFirstStageVars(); col++)
-	{	
+	{
 		if(input.isFirstStageColInteger(col)){
 			lb.getFirstStageVec()[col]=roundToNearestInteger(LPRelaxationSolution.getFirstStageVec()[col]);
 			ub.getFirstStageVec()[col]=roundToNearestInteger(LPRelaxationSolution.getFirstStageVec()[col]);
@@ -41,7 +40,7 @@ bool BBSMPSHeuristicRounding::runHeuristic(BBSMPSNode* node, denseBAVector &LPRe
 
 	/* Check solver status for infeasibility/optimality */
 	solverState lpStatus = rootSolver.getStatus();
-	bool otherThanOptimal = (Optimal != lpStatus); 
+	bool otherThanOptimal = (Optimal != lpStatus);
 	if (otherThanOptimal) return false;
 
 	denseBAVector primalSoln(rootSolver.getPrimalSolution());
@@ -68,19 +67,27 @@ bool BBSMPSHeuristicRounding::runHeuristic(BBSMPSNode* node, denseBAVector &LPRe
 	rootSolver.commitStates();
 	rootSolver.go();
 	lpStatus = rootSolver.getStatus();
-	otherThanOptimal = (Optimal != lpStatus); 
-	
-	if(!otherThanOptimal){
+	otherThanOptimal = (Optimal != lpStatus);
+
+	double objUB=COIN_DBL_MAX;
+	if (BBSMPSSolver::instance()->getSolPoolSize()>0)objUB=BBSMPSSolver::instance()->getSoln(0).getObjValue();
+
+
+	if(!otherThanOptimal && rootSolver.getObjective()<objUB){
 		denseBAVector solVector=rootSolver.getPrimalSolution();
-		solution=BBSMPSSolution(solVector,rootSolver.getObjective());
-		
+		if (isLPIntFeas(solVector)){
+			BBSMPSSolution sol(solVector,rootSolver.getObjective());
+			sol.setTimeOfDiscovery(BBSMPSSolver::instance()->getWallTime());
+			BBSMPSSolver::instance()->addSolutionToPool(sol);
+		}
+
 	}
 	//return if success
 	bool success= (!otherThanOptimal && rootSolver.getObjective()<objUB);
 	timesSuccessful+=success;
 
 	if (0 == mype && success) BBSMPS_ALG_LOG_SEV(info) << "The simple rounding heuristic was successful.";
-		
+
 	cumulativeTime+=(MPI_Wtime()-startTimeStamp);
 	return success;
 
@@ -89,22 +96,22 @@ bool BBSMPSHeuristicRounding::runHeuristic(BBSMPSNode* node, denseBAVector &LPRe
 bool BBSMPSHeuristicRounding::shouldItRun(BBSMPSNode* node, denseBAVector &LPRelaxationSolution){
 	SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
 	BAContext &ctx= BBSMPSSolver::instance()->getBAContext();
-	
+
 	int numberOfFractionalVariables=0;
 	int nIntVars=0;
 	for (int col = 0; col < input.nFirstStageVars(); col++)
-	{	
+	{
 		if(input.isFirstStageColInteger(col)){
 			numberOfFractionalVariables+=(!isIntFeas(LPRelaxationSolution.getFirstStageVec()[col],intTol));
 			nIntVars++;
 		}
-		
+
 	}
-	
+
 	int numberOfFractionalVariables2=0;
 	int nIntVars2=0;
 
-	
+
 	for (int scen = 0; scen < input.nScenarios(); scen++)
 	{
 		if(ctx.assignedScenario(scen)) {
@@ -114,7 +121,7 @@ bool BBSMPSHeuristicRounding::shouldItRun(BBSMPSNode* node, denseBAVector &LPRel
 				if(input.isSecondStageColInteger(scen,col)){
 					numberOfFractionalVariables2+=(!isIntFeas(LPRelaxationSolution.getSecondStageVec(scen)[col],intTol));
 					nIntVars2++;
-					
+
 				}
 			}
 		}
@@ -124,7 +131,7 @@ bool BBSMPSHeuristicRounding::shouldItRun(BBSMPSNode* node, denseBAVector &LPRel
 	int errorFlag = MPI_Allreduce(&numberOfFractionalVariables2,
 		&totalCount2,
 		1,
-		MPI_INT, 
+		MPI_INT,
 		MPI_SUM,
 		ctx.comm());
 
@@ -132,7 +139,7 @@ bool BBSMPSHeuristicRounding::shouldItRun(BBSMPSNode* node, denseBAVector &LPRel
 	errorFlag = MPI_Allreduce(&nIntVars2,
 		&totalIntVars2,
 		1,
-		MPI_INT, 
+		MPI_INT,
 		MPI_SUM,
 		ctx.comm());
 

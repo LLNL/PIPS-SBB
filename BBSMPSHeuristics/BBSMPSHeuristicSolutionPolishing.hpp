@@ -6,7 +6,7 @@
    the objective. The 90% least contributing ones, are fixed. The resulting subproblem is solved
    up to a certain node limit.
 
-*/ 
+*/
 // ----------------------------------------------------------------------------
 
 
@@ -19,15 +19,15 @@
 #include "BBSMPSSolver.hpp"
 #include "BBSMPSBranchingInfo.hpp"
 #include "BBSMPSTree.hpp"
-#include <utility> 
+#include <utility>
 #include <map>
 #include <vector>
 #include <algorithm>
 class BBSMPSHeuristicSolutionPolishing: public BBSMPSHeuristic {
-	
+
 public:
 	BBSMPSHeuristicSolutionPolishing(int offset, int depth,  const char *_name, int _nodeLim): nodeLim(_nodeLim),BBSMPSHeuristic(offset,depth,_name){};
-	bool runHeuristic(BBSMPSNode* node, denseBAVector &LPRelaxationSolution, BBSMPSSolution &solution, double objUB);
+	bool runHeuristic(BBSMPSNode* node, denseBAVector &LPRelaxationSolution);
 	bool shouldItRun(BBSMPSNode* node, denseBAVector &LPRelaxationSolution);
 
 private:

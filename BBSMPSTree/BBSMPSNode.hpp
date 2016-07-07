@@ -8,11 +8,11 @@
                 - Branching information
                 - (Future) cut information
 
-   Limitations: Since a node only contains incremental information, access to 
+   Limitations: Since a node only contains incremental information, access to
                 the node hierarchy is required in order to recover cuts and branching
                 info. Make sure to link to parents properly upon instantiation.
 
-*/ 
+*/
 // ----------------------------------------------------------------------------
 
 
@@ -91,7 +91,7 @@ public:
 
   void addBranchingInformation(BBSMPSBranchingInfo& bi);
 
-  void addCuttingPlane(BBSMPSCuttingPlane &cp);
+  void addCuttingPlane(BBSMPSCuttingPlane *cp);
 
   void incrementAliveChildren();
 
@@ -100,7 +100,7 @@ public:
   void eliminate();
 
   void deallocateWarmStartState();
-  
+
   void setIncrementalWarmStartState(std::vector< std::pair < BAIndex, variableState > > &changes);
 
   void reconstructWarmStartState(BAFlagVector<variableState> &state);
@@ -112,16 +112,23 @@ public:
   void getAllCuttingPlanes(std::vector<BBSMPSCuttingPlane*> &cpVector);
 
   void getParentNodeCuttingPlanes(std::vector<BBSMPSCuttingPlane*> &cpVector);
-    
+
   void  getGrandParentCuttingPlanes(std::vector<BBSMPSCuttingPlane*> &cpVector);
 
   void getCurrentNodeCuttingPlanes(std::vector<BBSMPSCuttingPlane*> &cpVector);
 
+  void copyCuttingPlanes(BBSMPSNode *node);
+
+void getAllCuttingUids(std::vector<int> &uidVector);
+
+  void getCurrentNodeCuttingPlaneUids(std::vector<int> &uidVector);
   int getNodeNumber() const;
 
   void setNodeDepth(int depth);
 
   int getNodeDepth();
+
+
 
   static void initializeNodeCounter();
 
@@ -152,12 +159,12 @@ private:
   std::vector< std::pair < BAIndex, variableState > > partialStartState;
 
   // objective function of the actual node (not its parent)
-  double objectiveValue; 
+  double objectiveValue;
 
 
   //Incremental cutting plane information relative to this node
-  std::vector<BBSMPSCuttingPlane> cuttingPlanes;
-
+  std::vector<BBSMPSCuttingPlane*> cuttingPlanes;
+  vector<int> cuttingPlaneUids;
   // TODO: Local cut objects; Global cuts are stored in the B&B tree.
 
   void auxCopyAllBranchingInformation(std::vector<BBSMPSBranchingInfo> &biVector);

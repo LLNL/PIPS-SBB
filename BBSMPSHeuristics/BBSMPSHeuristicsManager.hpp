@@ -8,7 +8,7 @@
    Limitations: Heuristics are only called when their frequency allows it or ShouldItRun()
    				returns positive.
 
-*/ 
+*/
 // ----------------------------------------------------------------------------
 
 #ifndef BBSMPSHEURISTICSMANAGER_H
@@ -19,6 +19,7 @@
 #include "BBSMPSHeuristic.hpp"
 #include "BBSMPSSolver.hpp"
 
+
 class BBSMPSHeuristicsManager {
 
 public:
@@ -26,16 +27,24 @@ public:
 
 	~BBSMPSHeuristicsManager();
 
-	void addHeuristic(BBSMPSHeuristic *heuristic);
+	void addLPHeuristic(BBSMPSHeuristic *heuristic);
 
-	bool runHeuristics(BBSMPSNode* n,denseBAVector &LPRelaxationSolution, std::vector<BBSMPSSolution> &solutions, double objUB);
+	void addMIPHeuristic(BBSMPSHeuristic *heuristic);
+
+	bool runLPHeuristics(BBSMPSNode* n,denseBAVector &LPRelaxationSolution);
+
+	bool runMIPHeuristics(BBSMPSNode* n,denseBAVector &LPRelaxationSolution);
+
+	bool willMIPHeuristicsRun(BBSMPSNode* n,denseBAVector &LPRelaxationSolution);
 
 	void printStatistics();
 
 	void freeResources();
 
 private:
-	std::vector<BBSMPSHeuristic*> heuristicsList;
+	std::vector<BBSMPSHeuristic*> MIPHeuristicsList;
+	std::vector<BBSMPSHeuristic*> LPHeuristicsList;
+
 };
 
 #endif

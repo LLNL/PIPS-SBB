@@ -8,7 +8,7 @@
    Limitations: All logic regarding the state of the solver should be allocated only
    				in this class.
 
-*/ 
+*/
 // ----------------------------------------------------------------------------
 
 
@@ -21,7 +21,7 @@ class BBSMPSSolverState {
 
 public:
 	BBSMPSSolverState(solverState s);
-	
+
 	~BBSMPSSolverState();
 
 	void setStatusToPrimalFeasible() ;

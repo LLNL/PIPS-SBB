@@ -2,10 +2,10 @@
 /**
    File: BBSMPSPseudoCostBranchingRule.hpp
 
-   Description: Branching rule that branches on the maximum fractional variable first. 
+   Description: Branching rule that branches on the maximum fractional variable first.
 
 
-*/ 
+*/
 // ----------------------------------------------------------------------------
 
 #ifndef BBSMPSPSEUDOCOSTBRANCHINGRULE_H
@@ -21,7 +21,7 @@ class BBSMPSPseudoCostBranchingRule: public BBSMPSBranchingRule {
 public:
 
    	virtual bool branch(BBSMPSNode * node, std::vector<BBSMPSNode*> &childNodes, const denseBAVector& primalSoln);
-   	
+
    	BBSMPSPseudoCostBranchingRule(int priority);
 
 
@@ -45,19 +45,19 @@ private:
 
    	void branchOnSecondStage(BBSMPSNode * node, std::vector<BBSMPSNode*> &childNodes, const denseBAVector& primalSoln,  SMPSInput& input,BAContext &ctx,int mype) ;
 
-      void initializeVariable(const denseBAVector &nodeRelaxation,BAFlagVector<variableState> &warmstart, double lpRelaxationObjValue, denseBAVector &lb, denseBAVector &ub, int scen, int col);
+    void initializeVariable(const denseBAVector &nodeRelaxation,BAFlagVector<variableState> &warmstart, double lpRelaxationObjValue, denseBAVector &lb, denseBAVector &ub, int scen, int col);
 
-      bool performRoundOfFirstStageInitializations(const denseBAVector &nodeRelaxation,BAFlagVector<variableState> &warmstart, denseBAVector &lb, denseBAVector &ub, double lpRelaxationObjValue);
+    bool performRoundOfFirstStageInitializations(const denseBAVector &nodeRelaxation,BAFlagVector<variableState> &warmstart, denseBAVector &lb, denseBAVector &ub, double lpRelaxationObjValue);
 
-       bool performRoundOfSecondStageInitializations(const denseBAVector &nodeRelaxation,BAFlagVector<variableState> &warmstart, denseBAVector &lb, denseBAVector &ub, double lpRelaxationObjValue);
+    bool performRoundOfSecondStageInitializations(const denseBAVector &nodeRelaxation,BAFlagVector<variableState> &warmstart, denseBAVector &lb, denseBAVector &ub, double lpRelaxationObjValue);
 
-       denseBAVector downPseudoCost;
-       denseBAVector upPseudoCost;
-       denseBAVector downBranchingHistory;
-       denseBAVector upBranchingHistory;
-       bool everythingFirstStageInitialized;
-       bool everythingSecondStageInitialized;
-       int reliabilityFactor;
+    denseBAVector downPseudoCost;
+    denseBAVector upPseudoCost;
+    denseBAVector downBranchingHistory;
+    denseBAVector upBranchingHistory;
+    bool everythingFirstStageInitialized;
+    bool everythingSecondStageInitialized;
+    int reliabilityFactor;
 
 };
 

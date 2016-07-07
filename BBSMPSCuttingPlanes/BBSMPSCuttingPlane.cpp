@@ -1,113 +1,73 @@
 #include "BBSMPSCuttingPlane.hpp"
 
 using namespace std;
+int BBSMPSCuttingPlane::planeCounter=0;
 
 BBSMPSCuttingPlane::BBSMPSCuttingPlane(double _lb, double _ub, denseBAVector &_expr){
 	lb=_lb;
 	ub=_ub;
-	expr=denseBAVector(_expr);
-	//cout<<"Created a new cutting plane!!!!!! The size of he expression is "<<expr.getFirstStageVec().length()<<endl;
+	dExpr=denseBAVector(_expr);
+	isExpressionDense=true;
+	uid=(++planeCounter);
 }
+
+BBSMPSCuttingPlane::BBSMPSCuttingPlane(double _lb, double _ub, sparseBAVector &_expr){
+	lb=_lb;
+	ub=_ub;
+	sExpr=sparseBAVector(_expr);
+	isExpressionDense=false;
+	uid=(++planeCounter);
+}
+
+BBSMPSCuttingPlane::BBSMPSCuttingPlane(const BBSMPSCuttingPlane& p){
+	lb=p.lb;
+	ub=p.ub;
+	if (p.isExpressionDense) dExpr=denseBAVector(p.dExpr);
+	else sExpr=sparseBAVector(p.sExpr);
+	isExpressionDense=p.isExpressionDense;
+}
+
+
+BBSMPSCuttingPlane::BBSMPSCuttingPlane(){};
+
 BBSMPSCuttingPlane::~BBSMPSCuttingPlane(){};
 
-bool BBSMPSCuttingPlane::applyCuttingPlane(){
 
-
-
-
-/*
-
+bool BBSMPSCuttingPlane::applyCrossScenarioCuttingPlane(){
 	SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
 	PIPSSInterface &rootSolver= BBSMPSSolver::instance()->getPIPSInterface();
 	const BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
 	BAContext &ctx=BBSMPSSolver::instance()->getBAContext();
-	cout<<"ch1 "<<endl;
-	//Create as many new vars as scenarios
-	
- cout<<"ch2 "<<endl;
-	//Create new vectors for first phase: copy the elements, set to ones the new variables
- 	//int firstIndex=rootSolver.addFirstStageColumn(0,0,0);
-//cout<<" index of new var "<<firstIndex<<endl;
- 	int originalNumVars1= dimsSlacks.inner.numFirstStageVars();
-	
- 	vector<double> Acons(originalNumVars1,1);
 
-
-
- 	/*Acons[0]=1;
- 	Acons[1]=0;
-
- 	Acons[3]=0;
- 	Acons[4]=0;
-
- 	Acons[firstIndex]=1;
-
- 	//Tcons[1]=1;
- 	Wcons[0]=1;
-
- 	Tcons[0]=1;
- 	
- 	Tcons[2]=1;
- 	
- 	//Acons[5]=1;
- 	
- 	Tcons[firstIndex]=1;*/
-	//At this point, the A vector is ready
- 	//vector< vector <double> > elts1;
- 	//elts1.push_back(Acons);
- 	//vector<double> firstStageRowsLb(1,COIN_DBL_MIN);
- 	//vector<double> firstStageRowsUb(1,COIN_DBL_MAX);
- 	//rootSolver.addFirstStageRows(elts1, firstStageRowsLb, firstStageRowsUb, 1);
-/*
- 	int numScenarios=input.nScenarios();
- 	for (int scen=0; scen<numScenarios; scen++){
-	 	if(ctx.assignedScenario(scen)){
-	 		int originalNumVars2= dimsSlacks.inner.numSecondStageVars(0);
-	
-
- 	vector<double> Wcons(originalNumVars2,1);
- 	vector<double> Tcons(originalNumVars1,1);
-rootSolver.addRow(Tcons,Wcons,scen,COIN_DBL_MIN,COIN_DBL_MAX);
- 	
-
-	 	}
-	 }
- 	rootSolver.addFirstStageRow(Acons,COIN_DBL_MIN,COIN_DBL_MAX);
- 	//rootSolver.commitNewRows();
-
-
-/*
-
-
-
-
-	SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
-	PIPSSInterface &rootSolver= BBSMPSSolver::instance()->getPIPSInterface();
-	const BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
-	BAContext &ctx=BBSMPSSolver::instance()->getBAContext();
 	int originalNumVars1= dimsSlacks.inner.numFirstStageVars();
+	int originalTotalSize= dimsSlacks.numFirstStageVars();
 
 	//Create as many new vars as scenarios
 	int numScenarios=input.nScenarios();
  	int firstIndex=-1;
  	if(numScenarios>0){
- 		firstIndex=rootSolver.addFirstStageColumn(0,COIN_DBL_MAX,0);
- 		for(int i=1; i< numScenarios; i++)rootSolver.addFirstStageColumn(0,COIN_DBL_MAX,0);
+ 		firstIndex=rootSolver.addFirstStageColumn(0,COIN_DBL_MAX,1);
+ 		for(int i=1; i< numScenarios; i++)rootSolver.addFirstStageColumn(0,COIN_DBL_MAX,1);
  	}
-	
+
 
 	//Create new vectors for first phase: copy the elements, set to ones the new variables
- 	cout<<originalNumVars1<<" and now "<<dimsSlacks.inner.numFirstStageVars()<<endl;
- 	vector<double> Acons(dimsSlacks.inner.numFirstStageVars(),1);
+ 	vector<double> Acons(dimsSlacks.inner.numFirstStageVars(),0);
+ 	if(isExpressionDense){
+ 		const denseVector &cutFirstStageVec = dExpr.getFirstStageVec();
+ 		for(int i=0; i< originalNumVars1; i++)Acons[i]=cutFirstStageVec[i];
+ 	}
+ 	else{
+ 		CoinIndexedVector &v1 = sExpr.getFirstStageVec().v;
+ 		int nExprElems = v1.getNumElements();
+ 		for (int i=0; i< nExprElems; i++){
+ 			Acons[v1.getIndices()[i]]=v1.denseVector()[i];
+ 		}
+ 	}
+ 	for(int i=originalNumVars1; i< Acons.size(); i++)Acons[i]=1;
 
-	
 	//At this point, the A vector is ready
- 	//vector< vector <double> > elts1;
- 	//elts1.push_back(Acons);
- 	//vector<double> firstStageRowsLb(1,lb);
- 	//vector<double> firstStageRowsUb(1,ub);
- 	//rootSolver.addFirstStageRows(elts1, firstStageRowsLb, firstStageRowsUb, 1);
- 	rootSolver.addFirstStageRow(Acons,lb, ub);//COIN_DBL_MIN,COIN_DBL_MAX); //lb,ub);
+ 	rootSolver.addFirstStageRow(Acons,lb,ub);
 	//Create new vectors for each of the scenarios
 	//For each scenario:
 	for (int scen=0; scen<numScenarios; scen++){
@@ -115,33 +75,36 @@ rootSolver.addRow(Tcons,Wcons,scen,COIN_DBL_MIN,COIN_DBL_MAX);
 
 			//Generate T with ones on the variable that is local
 			vector<double> Tcons(dimsSlacks.inner.numFirstStageVars(),0);
+
 			Tcons[firstIndex+scen]=-1;
+
 			//Generate W with the elements belonging to the second expression
 			int numVars2= dimsSlacks.inner.numSecondStageVars(scen);
-			
-			vector<double> Wcons(numVars2,1);
-			
+
+			vector<double> Wcons(numVars2,0);
+			if(isExpressionDense){
+		 		const denseVector &cutSecondStageVec = dExpr.getSecondStageVec(scen);
+				for(int i=0; i< numVars2; i++)Wcons[i]=cutSecondStageVec[i];
+		 	}
+		 	else{
+		 		CoinIndexedVector &v2 = sExpr.getSecondStageVec(scen).v;
+		 		int nExprElems2 = v2.getNumElements();
+		 		for (int i=0; i< nExprElems2; i++){
+		 			Wcons[v2.getIndices()[i]]=v2.denseVector()[i];
+		 		}
+		 	}
 
 			//Set bounds to zero and add new constraint.
-			//vector< vector <double> > Telts2;
-			//Telts2.push_back(Tcons);
-
-			//vector< vector <double> > Welts2;
-			//Welts2.push_back(Wcons);
-		
-			//vector<double> SecondStageRowsLb(1,0);
-			//vector<double> SecondStageRowsUb(1,0);	
 			rootSolver.addRow(Tcons,Wcons,scen,0,0);
-			//rootSolver.addSecondStageRows(Telts2, Welts2, scen, SecondStageRowsLb, SecondStageRowsUb, 1);
 
 	 		}
 
+ 	}
 
-	 	}
-*/
+	return true;
+}
 
-
-
+bool BBSMPSCuttingPlane::applySingleScenarioCuttingPlane(){
 
 	SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
 	PIPSSInterface &rootSolver= BBSMPSSolver::instance()->getPIPSInterface();
@@ -149,82 +112,84 @@ rootSolver.addRow(Tcons,Wcons,scen,COIN_DBL_MIN,COIN_DBL_MAX);
 	BAContext &ctx=BBSMPSSolver::instance()->getBAContext();
 	int originalNumVars1= dimsSlacks.inner.numFirstStageVars();
 	int originalTotalSize= dimsSlacks.numFirstStageVars();
-	//Create as many new vars as scenarios
 	int numScenarios=input.nScenarios();
- 	int firstIndex=-1;
- 	if(numScenarios>0){
- 		firstIndex=rootSolver.addFirstStageColumn(0,1,1);
- 		for(int i=1; i< numScenarios; i++)rootSolver.addFirstStageColumn(0,1,1);
- 	}
-	
-
-	//Create new vectors for first phase: copy the elements, set to ones the new variables
- 	cout<<originalNumVars1<<" and now "<<dimsSlacks.inner.numFirstStageVars()<<endl;
- 	vector<double> Acons(dimsSlacks.inner.numFirstStageVars(),1);
-
- 	const denseVector &cutFirstStageVec = expr.getFirstStageVec();
- 	 cout<<"ch22 "<<cutFirstStageVec.length()<<" "<<originalNumVars1<<" "<<originalTotalSize<< endl;
- 	for(int i=0; i< originalNumVars1; i++)Acons[i]=0;//cutFirstStageVec[i];
-
-	cout<<"The expression looks like that"<<endl;
-cout<<lb<<" "<<ub<< "Acol ";
-	for (int i=0; i< Acons.size(); i++)cout<<"["<<i<<"]"<<Acons[i]<<" ";
-		cout<<endl;
+	int mype=BBSMPSSolver::instance()->getMype();
 
 
-cout<<"ch3 "<<endl;
-	//At this point, the A vector is ready
- 	//vector< vector <double> > elts1;
- 	//elts1.push_back(Acons);
- 	//vector<double> firstStageRowsLb(1,lb);
- 	//vector<double> firstStageRowsUb(1,ub);
- 	//rootSolver.addFirstStageRows(elts1, firstStageRowsLb, firstStageRowsUb, 1);
- 	rootSolver.addFirstStageRow(Acons,0,0);//lb,ub);// //
-cout<<"ch4 "<<endl;
-	//Create new vectors for each of the scenarios
-	//For each scenario:
 	for (int scen=0; scen<numScenarios; scen++){
-	cout<<"ch5 "<<endl;
 	 	if(ctx.assignedScenario(scen)){
+	 		if(sExpr.getSecondStageVec(scen).v.getNumElements()>0){
+	 			vector<double> Tcons(dimsSlacks.inner.numFirstStageVars(),0);
 
-			//Generate T with ones on the variable that is local
-			vector<double> Tcons(dimsSlacks.inner.numFirstStageVars(),0);
-		//	cout<<" setting var numver "<<firstIndex+scen<<" in T "<<endl;
-			//Tcons[firstIndex+scen]=-1;
+	 			CoinIndexedVector &v1 = sExpr.getFirstStageVec().v;
+		 		int nExprElems = v1.getNumElements();
+		 		for (int i=0; i< nExprElems; i++){
+		 			Tcons[v1.getIndices()[i]]=v1.denseVector()[v1.getIndices()[i]];
+		 		}
 
-	//	/	cout<<"Tcol "<<scen<<" ";
-	//for (int i=0; i< Tcons.size(); i++)cout<<"["<<i<<"]"<<Tcons[i]<<" ";
-	//	cout<<endl;
+				//Generate W with the elements belonging to the second expression
+				int numVars2= dimsSlacks.inner.numSecondStageVars(scen);
+				vector<double> Wcons(numVars2,0);
+		 		CoinIndexedVector &v2 = sExpr.getSecondStageVec(scen).v;
+		 		int nExprElems2 = v2.getNumElements();
+		 		for (int i=0; i< nExprElems2; i++){
+		 			Wcons[v2.getIndices()[i]]=v2.denseVector()[v2.getIndices()[i]];
+		 		}
 
-
-			//Generate W with the elements belonging to the second expression
-			int numVars2= dimsSlacks.inner.numSecondStageVars(scen);
-		//	cout<<" Stage has "<<numVars2<<" vars"<<endl;
-			
-			vector<double> Wcons(numVars2,0);
-			const denseVector &cutSecondStageVec = expr.getSecondStageVec(scen);
-			for(int i=0; i< numVars2; i++)Wcons[i]=cutSecondStageVec[i];
-
-
-	//			cout<<"Wcons "<<scen<<" ";
-	//for (int i=0; i< Wcons.size(); i++)cout<<"["<<i<<"]"<<Wcons[i]<<" ";
-	//	cout<<endl;
-
-			//Set bounds to zero and add new constraint.
-			//vector< vector <double> > Telts2;
-			//Telts2.push_back(Tcons);
-
-			//vector< vector <double> > Welts2;
-			//Welts2.push_back(Wcons);
-		
-			//vector<double> SecondStageRowsLb(1,0);
-			//vector<double> SecondStageRowsUb(1,0);	
-			//rootSolver.addRow(Tcons,Wcons,scen,COIN_DBL_MIN,COIN_DBL_MAX);
-			//rootSolver.addSecondStageRows(Telts2, Welts2, scen, SecondStageRowsLb, SecondStageRowsUb, 1);
-
+			 	//Set bounds to zero and add new constraint.
+				rootSolver.addRow(Tcons,Wcons,scen,lb,ub);
+				return true;
 	 		}
+	 	}
+	 }
+	 if(sExpr.getFirstStageVec().v.getNumElements()>0){
+	 	vector<double> Acons(dimsSlacks.inner.numFirstStageVars(),0);
+ 		CoinIndexedVector &v1 = sExpr.getFirstStageVec().v;
+ 		int nExprElems = v1.getNumElements();
+ 		for (int i=0; i< nExprElems; i++){
+ 			Acons[v1.getIndices()[i]]=v1.denseVector()[v1.getIndices()[i]];
+ 		}
+ 		rootSolver.addFirstStageRow(Acons,lb,ub);
+		return true;
+		}
 
- 	}
-cout<<"ch6 "<<endl;
-		
+
+	return true;
 }
+bool BBSMPSCuttingPlane::applyCuttingPlane(){
+
+	SMPSInput &input =BBSMPSSolver::instance()->getSMPSInput();
+	PIPSSInterface &rootSolver= BBSMPSSolver::instance()->getPIPSInterface();
+	const BADimensionsSlacks &dimsSlacks= BBSMPSSolver::instance()->getBADimensionsSlacks();
+	BAContext &ctx=BBSMPSSolver::instance()->getBAContext();
+	int mype=BBSMPSSolver::instance()->getMype();
+	if (isExpressionDense){
+		applyCrossScenarioCuttingPlane();
+	}
+	else{
+		int nScensInExpr=0;
+		int numScenarios=input.nScenarios();
+		for (int scen=0; scen<numScenarios; scen++){
+		 	if(ctx.assignedScenario(scen)){
+		 		nScensInExpr+=(sExpr.getSecondStageVec(scen).v.getNumElements()>0);
+
+		 	}
+		 }
+		MPI_Allreduce(MPI_IN_PLACE,&nScensInExpr,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
+		//nScensInExpr+= (sExpr.getFirstStageVec().v.getNumElements()>0);
+		//Do crossScenario cut
+		if (nScensInExpr>1){
+			applyCrossScenarioCuttingPlane();
+		}
+		else {
+			//Decide on scenario and apply only if we own it.
+			applySingleScenarioCuttingPlane();
+		}
+	}
+
+
+
+
+}
+
+
