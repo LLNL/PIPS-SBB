@@ -1,1 +1,9 @@
 PIPS
+
+# Ignore tag files from GNU Global
+GPATH
+GRTAGS
+GTAGS
+
+# Ignore build directory
+build
